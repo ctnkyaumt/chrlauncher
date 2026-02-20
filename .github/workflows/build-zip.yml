@@ -12,16 +12,19 @@ jobs:
     runs-on: windows-2022
     steps:
       - uses: actions/checkout@v4
-        with:
-          submodules: recursive
 
       - uses: microsoft/setup-msbuild@v2
 
+      - name: Fetch routine dependency
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if (!(Test-Path ..\routine)) {
+            git clone --depth 1 https://github.com/henrypp/routine.git ..\routine
+          }
+
       - name: Build Release x64
         run: msbuild .\chrlauncher.sln /m /p:Configuration=Release /p:Platform=x64 /p:PlatformToolset=v143
-
-      - name: Build Release ARM64
-        run: msbuild .\chrlauncher.sln /m /p:Configuration=Release /p:Platform=ARM64 /p:PlatformToolset=v143
 
       - name: Package
         shell: pwsh
@@ -29,7 +32,6 @@ jobs:
           $ErrorActionPreference = 'Stop'
           New-Item -ItemType Directory -Force -Path dist | Out-Null
           Copy-Item -Recurse -Force -Path .\bin\64 -Destination .\dist\64
-          Copy-Item -Recurse -Force -Path .\bin\arm64 -Destination .\dist\arm64
           Compress-Archive -Force -Path .\dist\* -DestinationPath .\chrlauncher-bin.zip
 
       - uses: actions/upload-artifact@v4
