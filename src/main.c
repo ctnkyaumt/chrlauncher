@@ -1722,7 +1722,6 @@ TaskUpdateRelaunch:
 			_app_openbrowser (pbi);
 		}
 
-TaskUpdateCleanup:
 		_r_progress_setmarquee (hwnd, IDC_PROGRESS, FALSE);
 		_r_queuedlock_releaseshared (&lock_thread);
 		_r_wnd_sendmessage (hwnd, 0, WM_DESTROY, 0, 0);
