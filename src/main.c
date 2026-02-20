@@ -48,7 +48,7 @@ BOOL CALLBACK activate_browser_window_callback (
 	if (!_r_wnd_isvisible (hwnd, FALSE))
 		return TRUE;
 
-	status = _r_sys_openprocess (pid, PROCESS_QUERY_LIMITED_INFORMATION, &hprocess);
+	status = _r_sys_openprocess ((HANDLE)(ULONG_PTR)pid, PROCESS_QUERY_LIMITED_INFORMATION, &hprocess);
 
 	if (!NT_SUCCESS (status))
 		return TRUE;
@@ -98,7 +98,7 @@ BOOL CALLBACK close_browser_window_callback (
 	if (HandleToULong (NtCurrentProcessId ()) == pid)
 		return TRUE;
 
-	status = _r_sys_openprocess (pid, PROCESS_QUERY_LIMITED_INFORMATION, &hprocess);
+	status = _r_sys_openprocess ((HANDLE)(ULONG_PTR)pid, PROCESS_QUERY_LIMITED_INFORMATION, &hprocess);
 
 	if (!NT_SUCCESS (status))
 		return TRUE;
@@ -346,7 +346,7 @@ VOID _app_parse_args (
 	ULONG_PTR first_arg_length = 0;
 	INT numargs;
 
-	arga = CommandLineToArgvW (_r_sys_getcommandline ()->buffer, &numargs);
+	arga = CommandLineToArgvW (_r_sys_getcommandline (), &numargs);
 
 	if (!arga)
 		return;
@@ -414,7 +414,7 @@ VOID _app_parse_args (
 
 	if (pbi->is_hasurls)
 	{
-		pbi->urls_str = _r_obj_createstring (_r_sys_getcommandline ()->buffer + first_arg_length + 2);
+		pbi->urls_str = _r_obj_createstring (_r_sys_getcommandline () + first_arg_length + 2);
 
 		_r_str_trimstring2 (&pbi->urls_str->sr, L" ", 0);
 	}
@@ -461,8 +461,8 @@ VOID _app_init_browser_info (
 	_r_obj_clearreference ((PVOID_PTR)&pbi->args_str);
 
 	// configure paths
-	binary_dir = _r_config_getstringexpand (L"ChromiumDirectory", L".\\bin", NULL);
-	binary_name = _r_config_getstring (L"ChromiumBinary", L"chrome.exe", NULL);
+	binary_dir = _r_config_getstringexpand (L"ChromiumDirectory", L".\\bin");
+	binary_name = _r_config_getstring (L"ChromiumBinary", L"chrome.exe");
 
 	if (!binary_dir || !binary_name)
 	{
@@ -471,7 +471,7 @@ VOID _app_init_browser_info (
 		return;
 	}
 
-	status = _r_path_getfullpath (&binary_dir->sr, &string);
+	status = _r_path_getfullpath (binary_dir->buffer, &string);
 
 	if (NT_SUCCESS (status))
 	{
@@ -528,9 +528,9 @@ VOID _app_init_browser_info (
 
 	_r_obj_dereference (binary_name);
 
-	binary_dir = _r_config_getstringexpand (L"ChromePlusDirectory", L".\\bin", NULL);
+	binary_dir = _r_config_getstringexpand (L"ChromePlusDirectory", L".\\bin");
 
-	status = _r_path_getfullpath (&binary_dir->sr, &string);
+	status = _r_path_getfullpath (binary_dir->buffer, &string);
 
 	if (NT_SUCCESS (status))
 	{
@@ -545,14 +545,14 @@ VOID _app_init_browser_info (
 
 	binary_dir = _r_sys_gettempdirectory ();
 
-	string = _r_format_string (L"%s\\%s_%" TEXT (PR_ULONG) L".bin", _r_obj_getstring (binary_dir), _r_app_getnameshort (), _r_str_gethash (&pbi->binary_path->sr, TRUE));
+	string = _r_format_string (L"%s\\%s_%" TEXT (PR_ULONG) L".bin", _r_obj_getstring (binary_dir), _r_app_getnameshort (), _r_str_gethash2 (&pbi->binary_path->sr, TRUE));
 
 	_r_obj_movereference ((PVOID_PTR)&pbi->cache_path, string);
 
 	_r_obj_dereference (binary_dir);
 
 	// Get browser architecture
-	pbi->architecture = _r_config_getlong (L"ChromiumArchitecture", 0, NULL);
+	pbi->architecture = _r_config_getlong (L"ChromiumArchitecture", 0);
 
 	if (pbi->architecture != 64 && pbi->architecture != 32)
 	{
@@ -581,8 +581,8 @@ VOID _app_init_browser_info (
 		pbi->architecture = 64; // default architecture
 
 	// Set common data
-	browser_type = _r_config_getstring (L"ChromiumType", CHROMIUM_TYPE, NULL);
-	browser_arguments = _r_config_getstringexpand (L"ChromiumCommandLine", CHROMIUM_COMMAND_LINE, NULL);
+	browser_type = _r_config_getstring (L"ChromiumType", CHROMIUM_TYPE);
+	browser_arguments = _r_config_getstringexpand (L"ChromiumCommandLine", CHROMIUM_COMMAND_LINE);
 
 	if (browser_type)
 		_r_obj_movereference ((PVOID_PTR)&pbi->browser_type, browser_type);
@@ -599,23 +599,23 @@ VOID _app_init_browser_info (
 	// parse arguments
 	_app_parse_args (pbi);
 
-	pbi->check_period = _r_config_getlong (L"ChromiumCheckPeriod", 2, NULL);
+	pbi->check_period = _r_config_getlong (L"ChromiumCheckPeriod", 2);
 
 	if (pbi->check_period == INT_ERROR)
 		pbi->is_forcecheck = TRUE;
 
 	// set default config
 	if (!pbi->is_autodownload)
-		pbi->is_autodownload = _r_config_getboolean (L"ChromiumAutoDownload", FALSE, NULL);
+		pbi->is_autodownload = _r_config_getboolean (L"ChromiumAutoDownload", FALSE);
 
 	if (!pbi->is_bringtofront)
-		pbi->is_bringtofront = _r_config_getboolean (L"ChromiumBringToFront", TRUE, NULL);
+		pbi->is_bringtofront = _r_config_getboolean (L"ChromiumBringToFront", TRUE);
 
 	if (!pbi->is_waitdownloadend)
-		pbi->is_waitdownloadend = _r_config_getboolean (L"ChromiumWaitForDownloadEnd", TRUE, NULL);
+		pbi->is_waitdownloadend = _r_config_getboolean (L"ChromiumWaitForDownloadEnd", TRUE);
 
 	if (!pbi->is_onlyupdate)
-		pbi->is_onlyupdate = _r_config_getboolean (L"ChromiumUpdateOnly", FALSE, NULL);
+		pbi->is_onlyupdate = _r_config_getboolean (L"ChromiumUpdateOnly", FALSE);
 
 	// rewrite options when update-only mode is enabled
 	if (pbi->is_onlyupdate)
@@ -801,7 +801,7 @@ BOOLEAN _app_isupdaterequired (
 	if (pbi->check_period)
 	{
 		timestamp = _r_unixtime_now ();
-		timestamp -= _r_config_getlong64 (L"ChromiumLastCheck", 0, NULL);
+		timestamp -= _r_config_getlong64 (L"ChromiumLastCheck", 0);
 
 		if (timestamp >= _r_calc_days2seconds (pbi->check_period))
 			return TRUE;
@@ -862,7 +862,7 @@ BOOLEAN _app_checkupdate (
 
 	if (!is_exists || is_updaterequired)
 	{
-		update_url = _r_config_getstring (L"ChromiumUpdateUrl", CHROMIUM_UPDATE_URL, NULL);
+		update_url = _r_config_getstring (L"ChromiumUpdateUrl", CHROMIUM_UPDATE_URL);
 
 		if (!update_url)
 			return FALSE;
@@ -919,15 +919,19 @@ BOOLEAN _app_checkupdate (
 
 	if (hashtable)
 	{
-		string = _r_obj_findhashtablepointer (hashtable, _r_str_gethash2 (L"download", TRUE));
+		R_STRINGREF download_key = PR_STRINGREF_INIT (L"download");
+		R_STRINGREF version_key = PR_STRINGREF_INIT (L"version");
+		R_STRINGREF timestamp_key = PR_STRINGREF_INIT (L"timestamp");
+
+		string = _r_obj_findhashtablepointer (hashtable, _r_str_gethash2 (&download_key, TRUE));
 
 		_r_obj_movereference ((PVOID_PTR)&pbi->download_url, string);
 
-		string = _r_obj_findhashtablepointer (hashtable, _r_str_gethash2 (L"version", TRUE));
+		string = _r_obj_findhashtablepointer (hashtable, _r_str_gethash2 (&version_key, TRUE));
 
 		_r_obj_movereference ((PVOID_PTR)&pbi->new_version, string);
 
-		string = _r_obj_findhashtablepointer (hashtable, _r_str_gethash2 (L"timestamp", TRUE));
+		string = _r_obj_findhashtablepointer (hashtable, _r_str_gethash2 (&timestamp_key, TRUE));
 
 		if (string)
 		{
@@ -949,7 +953,7 @@ BOOLEAN _app_checkupdate (
 		{
 			SAFE_DELETE_REFERENCE (pbi->download_url); // clear download url if update was not found
 
-			_r_config_setlong64 (L"ChromiumLastCheck", _r_unixtime_now (), NULL);
+			_r_config_setlong64 (L"ChromiumLastCheck", _r_unixtime_now ());
 		}
 
 		_r_obj_dereference (hashtable);
@@ -960,9 +964,9 @@ BOOLEAN _app_checkupdate (
 	return is_success;
 }
 
-BOOLEAN WINAPI _app_downloadupdate_callback (
-	_In_ ULONG64 total_written,
-	_In_ ULONG64 total_length,
+BOOLEAN NTAPI _app_downloadupdate_callback (
+	_In_ ULONG total_written,
+	_In_ ULONG total_length,
 	_In_ PVOID lparam
 )
 {
@@ -1584,7 +1588,7 @@ VOID _app_thread_check (
 			{
 				if (_app_installupdate (hwnd, pbi, &is_haveerror))
 				{
-					_r_config_setlong64 (L"ChromiumLastCheck", _r_unixtime_now (), NULL);
+					_r_config_setlong64 (L"ChromiumLastCheck", _r_unixtime_now ());
 					is_installed = TRUE;
 				}
 
@@ -1644,7 +1648,7 @@ TaskUpdateCleanup:
 
 				_app_update_browser_info (hwnd, pbi);
 
-				_r_config_setlong64 (L"ChromiumLastCheck", _r_unixtime_now (), NULL);
+				_r_config_setlong64 (L"ChromiumLastCheck", _r_unixtime_now ());
 
 				is_installed = TRUE;
 			}
@@ -1675,7 +1679,7 @@ TaskUpdateCleanup:
 
 		if (is_exists)
 		{
-			if (_r_config_getboolean (L"ChromiumRunAtEnd", TRUE, NULL))
+			if (_r_config_getboolean (L"ChromiumRunAtEnd", TRUE))
 			{
 				if (!pbi->is_waitdownloadend && !pbi->is_onlyupdate)
 					_app_openbrowser (pbi);
@@ -1691,7 +1695,7 @@ TaskUpdateCleanup:
 				if (pbi->is_bringtofront)
 					_r_wnd_toggle (hwnd, TRUE); // show window
 
-				if (_r_config_getboolean (L"ChromiumRunAtEnd", TRUE, NULL))
+				if (_r_config_getboolean (L"ChromiumRunAtEnd", TRUE))
 				{
 					if (is_exists && !pbi->is_onlyupdate && !pbi->is_waitdownloadend && !_app_isupdatedownloaded (pbi))
 						_app_openbrowser (pbi);
@@ -1706,7 +1710,7 @@ TaskUpdateCleanup:
 						_r_ctrl_enable (hwnd, IDC_START_BTN, FALSE);
 
 						if (_app_installupdate (hwnd, pbi, &is_haveerror))
-							_r_config_setlong64 (L"ChromiumLastCheck", _r_unixtime_now (), NULL);
+							_r_config_setlong64 (L"ChromiumLastCheck", _r_unixtime_now ());
 					}
 					else
 					{
@@ -1770,7 +1774,7 @@ TaskUpdateCleanup:
 		is_stayopen = TRUE;
 	}
 
-	if (_r_config_getboolean (L"ChromiumRunAtEnd", TRUE, NULL) && !pbi->is_onlyupdate)
+	if (_r_config_getboolean (L"ChromiumRunAtEnd", TRUE) && !pbi->is_onlyupdate)
 		_app_openbrowser (pbi);
 
 	_r_queuedlock_releaseshared (&lock_thread);
@@ -1838,15 +1842,15 @@ INT_PTR CALLBACK DlgProc (
 
 			if (hmenu)
 			{
-				is_taskenabled = _r_config_getboolean (L"TaskUpdateEnabled", FALSE, NULL);
+				is_taskenabled = _r_config_getboolean (L"TaskUpdateEnabled", FALSE);
 
 				if (is_taskenabled && !_app_taskupdate_istaskpresent ())
 				{
 					is_taskenabled = FALSE;
-					_r_config_setboolean (L"TaskUpdateEnabled", FALSE, NULL);
+					_r_config_setboolean (L"TaskUpdateEnabled", FALSE);
 				}
 
-				_r_menu_checkitem (hmenu, IDM_RUNATEND_CHK, 0, MF_BYCOMMAND, _r_config_getboolean (L"ChromiumRunAtEnd", TRUE, NULL));
+				_r_menu_checkitem (hmenu, IDM_RUNATEND_CHK, 0, MF_BYCOMMAND, _r_config_getboolean (L"ChromiumRunAtEnd", TRUE));
 				_r_menu_checkitem (hmenu, IDM_DARKMODE_CHK, 0, MF_BYCOMMAND, _r_theme_isenabled ());
 				_r_menu_checkitem (hmenu, IDM_TASKUPDATE_CHK, 0, MF_BYCOMMAND, is_taskenabled);
 			}
@@ -1972,7 +1976,7 @@ INT_PTR CALLBACK DlgProc (
 		{
 			_r_tray_destroy (hwnd, &GUID_TrayIcon);
 
-			if (_r_config_getboolean (L"ChromiumRunAtEnd", TRUE, NULL))
+			if (_r_config_getboolean (L"ChromiumRunAtEnd", TRUE))
 			{
 				if (browser_info.is_waitdownloadend && !browser_info.is_onlyupdate)
 					_app_openbrowser (&browser_info);
@@ -2201,11 +2205,11 @@ INT_PTR CALLBACK DlgProc (
 				{
 					BOOLEAN new_val;
 
-					new_val = !_r_config_getboolean (L"ChromiumRunAtEnd", TRUE, NULL);
+					new_val = !_r_config_getboolean (L"ChromiumRunAtEnd", TRUE);
 
 					_r_menu_checkitem (GetMenu (hwnd), ctrl_id, 0, MF_BYCOMMAND, new_val);
 
-					_r_config_setboolean (L"ChromiumRunAtEnd", new_val, NULL);
+					_r_config_setboolean (L"ChromiumRunAtEnd", new_val);
 
 					break;
 				}
@@ -2227,7 +2231,7 @@ INT_PTR CALLBACK DlgProc (
 				{
 					BOOLEAN new_val;
 
-					new_val = !_r_config_getboolean (L"TaskUpdateEnabled", FALSE, NULL);
+					new_val = !_r_config_getboolean (L"TaskUpdateEnabled", FALSE);
 
 					if (new_val)
 					{
@@ -2246,7 +2250,7 @@ INT_PTR CALLBACK DlgProc (
 					}
 
 					_r_menu_checkitem (GetMenu (hwnd), ctrl_id, 0, MF_BYCOMMAND, new_val);
-					_r_config_setboolean (L"TaskUpdateEnabled", new_val, NULL);
+					_r_config_setboolean (L"TaskUpdateEnabled", new_val);
 
 					break;
 				}
