@@ -30,8 +30,9 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          $outDir = Join-Path $PWD 'bin\x64'
-          if (!(Test-Path $outDir)) { throw "Build output folder not found: $outDir" }
+          $exe = Get-ChildItem -Path (Join-Path $PWD 'bin') -Recurse -File -Filter 'chrlauncher.exe' | Select-Object -First 1
+          if ($null -eq $exe) { throw "Build output not found under .\\bin (chrlauncher.exe missing)" }
+          $outDir = Split-Path -Parent $exe.FullName
 
           New-Item -ItemType Directory -Force -Path .\dist\chrlauncher\64 | Out-Null
 
