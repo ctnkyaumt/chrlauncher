@@ -26,20 +26,35 @@ jobs:
       - name: Build Release x64
         run: msbuild .\chrlauncher.sln /m /p:Configuration=Release /p:Platform=x64 /p:PlatformToolset=v143
 
+      - name: Build Release Win32
+        run: msbuild .\chrlauncher.sln /m /p:Configuration=Release /p:Platform=Win32 /p:PlatformToolset=v143
+
       - name: Package
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          $exe = Get-ChildItem -Path (Join-Path $PWD 'bin') -Recurse -File -Filter 'chrlauncher.exe' | Select-Object -First 1
-          if ($null -eq $exe) { throw "Build output not found under .\\bin (chrlauncher.exe missing)" }
-          $outDir = Split-Path -Parent $exe.FullName
+          $binRoot = Join-Path $PWD 'bin'
+          if (!(Test-Path $binRoot)) { throw "Missing .\\bin output folder" }
 
-          New-Item -ItemType Directory -Force -Path .\dist\chrlauncher\64 | Out-Null
+          New-Item -ItemType Directory -Force -Path .\dist\chrlauncher | Out-Null
 
-          Copy-Item -Recurse -Force `
-            -Path (Join-Path $outDir '*') `
-            -Destination .\dist\chrlauncher\64 `
-            -Exclude *.pdb,*.ipdb,*.iobj
+          $targets = @(
+            @{ Folder = '64'; Exe = 'chrlauncher.exe' },
+            @{ Folder = '32'; Exe = 'chrlauncher.exe' }
+          )
+
+          foreach ($t in $targets) {
+            $src = Join-Path $binRoot $t.Folder
+            if (Test-Path (Join-Path $src $t.Exe)) {
+              $dst = Join-Path $PWD ("dist\\chrlauncher\\" + $t.Folder)
+              New-Item -ItemType Directory -Force -Path $dst | Out-Null
+              Copy-Item -Recurse -Force -Path (Join-Path $src '*') -Destination $dst -Exclude *.pdb,*.ipdb,*.iobj
+            }
+          }
+
+          if (!(Test-Path .\dist\chrlauncher\64\chrlauncher.exe) -and !(Test-Path .\dist\chrlauncher\32\chrlauncher.exe)) {
+            throw "No packaged outputs were found (expected dist\\chrlauncher\\{32,64}\\chrlauncher.exe)"
+          }
 
           Compress-Archive -Force -Path .\dist\chrlauncher -DestinationPath .\chrlauncher-bin.zip
 

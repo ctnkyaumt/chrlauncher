@@ -1,3 +1,11 @@
+v2.7 (20 February 2026)
+- fixed building against latest routine sdk
+- fixed empty Language submenu after adding new Settings items
+- changed default update checking to disabled (ChromiumCheckPeriod=0)
+- improved CI artifact packaging (include full release file set)
+- added scheduled auto-update toggle with restart notice
+- fixed bugs
+
 v2.6 (14 January 2022)
 - set win7sp1 as minimum required version
 - prevent system sleep until download complete
