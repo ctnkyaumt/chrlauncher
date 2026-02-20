@@ -26,6 +26,8 @@ R_QUEUED_LOCK lock_thread = PR_QUEUED_LOCK_INIT;
 
 R_WORKQUEUE workqueue;
 
+static const WCHAR TASKUPDATE_TASK_NAME[] = L"chrlauncher\\AutoUpdate";
+
 BOOL CALLBACK activate_browser_window_callback (
 	_In_ HWND hwnd,
 	_In_ LPARAM lparam
@@ -68,6 +70,170 @@ BOOL CALLBACK activate_browser_window_callback (
 	}
 
 	NtClose (hprocess);
+
+	return is_success;
+}
+
+typedef struct _CLOSE_BROWSER_CONTEXT
+{
+	PBROWSER_INFORMATION pbi;
+	ULONG count;
+} CLOSE_BROWSER_CONTEXT, *PCLOSE_BROWSER_CONTEXT;
+
+BOOL CALLBACK close_browser_window_callback (
+	_In_ HWND hwnd,
+	_In_ LPARAM lparam
+)
+{
+	PCLOSE_BROWSER_CONTEXT ctx;
+	PR_STRING process_path;
+	HANDLE hprocess;
+	ULONG pid;
+	NTSTATUS status;
+
+	ctx = (PCLOSE_BROWSER_CONTEXT)lparam;
+
+	GetWindowThreadProcessId (hwnd, &pid);
+
+	if (HandleToULong (NtCurrentProcessId ()) == pid)
+		return TRUE;
+
+	status = _r_sys_openprocess (pid, PROCESS_QUERY_LIMITED_INFORMATION, &hprocess);
+
+	if (!NT_SUCCESS (status))
+		return TRUE;
+
+	status = _r_sys_queryprocessstring (hprocess, ProcessImageFileNameWin32, &process_path);
+
+	if (NT_SUCCESS (status))
+	{
+		if (_r_str_isequal (&ctx->pbi->binary_path->sr, &process_path->sr, TRUE))
+		{
+			PostMessageW (hwnd, WM_CLOSE, 0, 0);
+			ctx->count += 1;
+		}
+
+		_r_obj_dereference (process_path);
+	}
+
+	NtClose (hprocess);
+
+	return TRUE;
+}
+
+BOOLEAN _app_runprocess_wait (
+	_In_ LPCWSTR cmdline,
+	_Out_opt_ PULONG exit_code_ptr
+)
+{
+	STARTUPINFOW si = {0};
+	PROCESS_INFORMATION pi = {0};
+	LPWSTR mutable_cmdline;
+	SIZE_T length;
+	ULONG exit_code = ERROR_GEN_FAILURE;
+	BOOLEAN is_success = FALSE;
+
+	si.cb = sizeof (si);
+
+	length = _r_str_getlength (cmdline) + 1;
+	mutable_cmdline = _r_mem_allocate (length * sizeof (WCHAR));
+
+	if (!mutable_cmdline)
+		return FALSE;
+
+	_r_str_copy (mutable_cmdline, length, cmdline);
+
+	if (CreateProcessW (
+		NULL,
+		mutable_cmdline,
+		NULL,
+		NULL,
+		FALSE,
+		CREATE_NO_WINDOW,
+		NULL,
+		NULL,
+		&si,
+		&pi
+	))
+	{
+		WaitForSingleObject (pi.hProcess, INFINITE);
+
+		if (GetExitCodeProcess (pi.hProcess, &exit_code))
+			is_success = TRUE;
+
+		CloseHandle (pi.hThread);
+		CloseHandle (pi.hProcess);
+	}
+
+	_r_mem_free (mutable_cmdline);
+
+	if (exit_code_ptr)
+		*exit_code_ptr = exit_code;
+
+	return is_success;
+}
+
+BOOLEAN _app_taskupdate_istaskpresent ()
+{
+	PR_STRING cmdline;
+	ULONG exit_code = ERROR_GEN_FAILURE;
+	BOOLEAN is_exists = FALSE;
+
+	cmdline = _r_format_string (L"schtasks.exe /Query /TN \"%s\"", TASKUPDATE_TASK_NAME);
+
+	if (cmdline)
+	{
+		if (_app_runprocess_wait (cmdline->buffer, &exit_code))
+			is_exists = (exit_code == ERROR_SUCCESS);
+
+		_r_obj_dereference (cmdline);
+	}
+
+	return is_exists;
+}
+
+BOOLEAN _app_taskupdate_createtask ()
+{
+	WCHAR exe_path[4096] = {0};
+	PR_STRING cmdline;
+	ULONG exit_code = ERROR_GEN_FAILURE;
+	BOOLEAN is_success = FALSE;
+
+	if (!GetModuleFileNameW (NULL, exe_path, RTL_NUMBER_OF (exe_path)))
+		return FALSE;
+
+	cmdline = _r_format_string (
+		L"schtasks.exe /Create /TN \"%s\" /SC MINUTE /MO 7 /F /RL LIMITED /TR \"\\\"%s\\\" /taskupdate\"",
+		TASKUPDATE_TASK_NAME,
+		exe_path
+	);
+
+	if (cmdline)
+	{
+		if (_app_runprocess_wait (cmdline->buffer, &exit_code))
+			is_success = (exit_code == ERROR_SUCCESS);
+
+		_r_obj_dereference (cmdline);
+	}
+
+	return is_success;
+}
+
+BOOLEAN _app_taskupdate_deletetask ()
+{
+	PR_STRING cmdline;
+	ULONG exit_code = ERROR_GEN_FAILURE;
+	BOOLEAN is_success = FALSE;
+
+	cmdline = _r_format_string (L"schtasks.exe /Delete /TN \"%s\" /F", TASKUPDATE_TASK_NAME);
+
+	if (cmdline)
+	{
+		if (_app_runprocess_wait (cmdline->buffer, &exit_code))
+			is_success = (exit_code == ERROR_SUCCESS);
+
+		_r_obj_dereference (cmdline);
+	}
 
 	return is_success;
 }
@@ -216,6 +382,10 @@ VOID _app_parse_args (
 				else if (_r_str_compare (key2, L"update", 6) == 0)
 				{
 					pbi->is_onlyupdate = TRUE;
+				}
+				else if (_r_str_compare (key2, L"taskupdate", 10) == 0)
+				{
+					pbi->is_taskupdate = TRUE;
 				}
 				else if (*key == L'-')
 				{
@@ -452,6 +622,15 @@ VOID _app_init_browser_info (
 	{
 		pbi->is_forcecheck = TRUE;
 		pbi->is_bringtofront = TRUE;
+		pbi->is_waitdownloadend = TRUE;
+	}
+
+	if (pbi->is_taskupdate)
+	{
+		pbi->is_onlyupdate = TRUE;
+		pbi->is_autodownload = TRUE;
+		pbi->is_forcecheck = TRUE;
+		pbi->is_bringtofront = FALSE;
 		pbi->is_waitdownloadend = TRUE;
 	}
 }
@@ -1370,6 +1549,83 @@ VOID _app_thread_check (
 
 	_r_ctrl_setstring (hwnd, IDC_START_BTN, _r_locale_getstring (locale_id));
 
+	if (pbi->is_taskupdate)
+	{
+		CLOSE_BROWSER_CONTEXT close_ctx = {0};
+		PR_STRING saved_args = NULL;
+		PR_STRING restore_args = NULL;
+		BOOLEAN was_running = FALSE;
+
+		close_ctx.pbi = pbi;
+
+		if (!_app_isupdatedownloaded (pbi))
+		{
+			_app_checkupdate (hwnd, pbi, &is_haveerror);
+
+			if (is_haveerror || !_app_ishaveupdate (pbi))
+				goto TaskUpdateCleanup;
+
+			if (!_app_downloadupdate (hwnd, pbi, &is_haveerror) || is_haveerror)
+				goto TaskUpdateCleanup;
+		}
+
+		if (_r_fs_isfileused (&pbi->binary_path->sr))
+		{
+			_r_tray_popup (hwnd, &GUID_TrayIcon, NIIF_INFO, _r_app_getname (), _r_locale_getstring (IDS_STATUS_RESTARTNOTICE));
+
+			EnumWindows (&close_browser_window_callback, (LPARAM)&close_ctx);
+
+			was_running = (close_ctx.count != 0);
+		}
+
+		for (INT i = 0; i < 14; i++)
+		{
+			if (!_r_fs_isfileused (&pbi->binary_path->sr))
+			{
+				if (_app_installupdate (hwnd, pbi, &is_haveerror))
+				{
+					_r_config_setlong64 (L"ChromiumLastCheck", _r_unixtime_now (), NULL);
+					is_installed = TRUE;
+				}
+
+				break;
+			}
+
+			Sleep (30000);
+		}
+
+		if (!is_installed)
+		{
+			if (_r_fs_isfileused (&pbi->binary_path->sr))
+				_r_tray_popup (hwnd, &GUID_TrayIcon, NIIF_INFO, _r_app_getname (), _r_locale_getstring (IDS_STATUS_RETRYINSTALL));
+
+			goto TaskUpdateCleanup;
+		}
+
+		if (was_running)
+		{
+			restore_args = _r_obj_concatstrings (2, _r_obj_getstring (pbi->args_str), L" --restore-last-session");
+
+			if (restore_args)
+			{
+				_r_obj_movereference ((PVOID_PTR)&saved_args, pbi->args_str);
+				_r_obj_movereference ((PVOID_PTR)&pbi->args_str, restore_args);
+			}
+
+			_app_openbrowser (pbi);
+
+			if (saved_args)
+				_r_obj_movereference ((PVOID_PTR)&pbi->args_str, saved_args);
+		}
+
+TaskUpdateCleanup:
+		_r_progress_setmarquee (hwnd, IDC_PROGRESS, FALSE);
+		_r_queuedlock_releaseshared (&lock_thread);
+		_r_wnd_sendmessage (hwnd, 0, WM_DESTROY, 0, 0);
+
+		return;
+	}
+
 	// unpack downloaded package
 	if (_app_isupdatedownloaded (pbi))
 	{
@@ -1562,6 +1818,7 @@ INT_PTR CALLBACK DlgProc (
 			LONG icon_small;
 			LONG dpi_value;
 			BOOLEAN is_hidden;
+			BOOLEAN is_taskenabled;
 
 			dpi_value = _r_dc_gettaskbardpi ();
 
@@ -1581,8 +1838,17 @@ INT_PTR CALLBACK DlgProc (
 
 			if (hmenu)
 			{
+				is_taskenabled = _r_config_getboolean (L"TaskUpdateEnabled", FALSE, NULL);
+
+				if (is_taskenabled && !_app_taskupdate_istaskpresent ())
+				{
+					is_taskenabled = FALSE;
+					_r_config_setboolean (L"TaskUpdateEnabled", FALSE, NULL);
+				}
+
 				_r_menu_checkitem (hmenu, IDM_RUNATEND_CHK, 0, MF_BYCOMMAND, _r_config_getboolean (L"ChromiumRunAtEnd", TRUE, NULL));
 				_r_menu_checkitem (hmenu, IDM_DARKMODE_CHK, 0, MF_BYCOMMAND, _r_theme_isenabled ());
+				_r_menu_checkitem (hmenu, IDM_TASKUPDATE_CHK, 0, MF_BYCOMMAND, is_taskenabled);
 			}
 
 			_r_taskbar_initialize (&browser_info.htaskbar);
@@ -1627,6 +1893,7 @@ INT_PTR CALLBACK DlgProc (
 				_r_menu_setitemtext (hmenu, IDM_EXIT, FALSE, _r_locale_getstring (IDS_EXIT));
 				_r_menu_setitemtext (hmenu, IDM_RUNATEND_CHK, FALSE, _r_locale_getstring (IDS_RUNATEND_CHK));
 				_r_menu_setitemtext (hmenu, IDM_DARKMODE_CHK, FALSE, _r_locale_getstring (IDS_DARKMODE_CHK));
+				_r_menu_setitemtext (hmenu, IDM_TASKUPDATE_CHK, FALSE, _r_locale_getstring (IDS_TASKUPDATE_CHK));
 				_r_menu_setitemtext (hmenu, IDM_WEBSITE, FALSE, _r_locale_getstring (IDS_WEBSITE));
 				_r_menu_setitemtextformat (hmenu, IDM_ABOUT, FALSE, L"%s\tF1", _r_locale_getstring (IDS_ABOUT));
 
@@ -1952,6 +2219,34 @@ INT_PTR CALLBACK DlgProc (
 					_r_menu_checkitem (GetMenu (hwnd), ctrl_id, 0, MF_BYCOMMAND, new_val);
 
 					_r_theme_enable (hwnd, new_val);
+
+					break;
+				}
+
+				case IDM_TASKUPDATE_CHK:
+				{
+					BOOLEAN new_val;
+
+					new_val = !_r_config_getboolean (L"TaskUpdateEnabled", FALSE, NULL);
+
+					if (new_val)
+					{
+						if (_r_show_message (hwnd, MB_YESNO | MB_ICONQUESTION, NULL, _r_locale_getstring (IDS_QUESTION_TASKENABLE)) != IDYES)
+							break;
+
+						if (!_app_taskupdate_createtask ())
+						{
+							_r_show_message (hwnd, MB_ICONERROR, NULL, L"Failed to create scheduled task.");
+							break;
+						}
+					}
+					else
+					{
+						_app_taskupdate_deletetask ();
+					}
+
+					_r_menu_checkitem (GetMenu (hwnd), ctrl_id, 0, MF_BYCOMMAND, new_val);
+					_r_config_setboolean (L"TaskUpdateEnabled", new_val, NULL);
 
 					break;
 				}

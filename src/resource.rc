@@ -35,6 +35,7 @@ BEGIN
 	BEGIN
 		MENUITEM " ", IDM_RUNATEND_CHK
 		MENUITEM " ", IDM_DARKMODE_CHK
+		MENUITEM " ", IDM_TASKUPDATE_CHK
 		MENUITEM SEPARATOR
 		POPUP " "
 		BEGIN
@@ -136,6 +137,10 @@ BEGIN
 
 	IDS_RUNATEND_CHK "Start browser at end"
 	IDS_DARKMODE_CHK "Use dark theme"
+	IDS_TASKUPDATE_CHK "Enable scheduled auto-update"
+	IDS_STATUS_RESTARTNOTICE "Chromium will be restarted to apply the update."
+	IDS_STATUS_RETRYINSTALL "Update downloaded, but Chromium is still running. Will retry later."
+	IDS_QUESTION_TASKENABLE "Create a scheduled task that checks for updates every 7 minutes and may restart running Chromium to apply updates?"
 END
 
 //

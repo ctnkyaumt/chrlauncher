@@ -52,5 +52,6 @@ typedef struct _BROWSER_INFORMATION
 	BOOLEAN is_hasurls;
 	BOOLEAN is_onlyupdate;
 	BOOLEAN is_opennewwindow;
+	BOOLEAN is_taskupdate;
 	BOOLEAN is_waitdownloadend;
 } BROWSER_INFORMATION, *PBROWSER_INFORMATION;
