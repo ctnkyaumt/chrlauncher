@@ -17,8 +17,9 @@ DEFINE_GUID (GUID_TrayIcon, 0xEAD41630, 0x90BB, 0x4836, 0x82, 0x41, 0xAE, 0xAE, 
 	L"<a href=\"https://chromium.woolyss.com\">chromium.woolyss.com</a>"
 
 #define CHROMIUM_UPDATE_URL L"https://chromium.woolyss.com/api/v3/?os=windows&bit=%d&type=%s&out=string"
+#define CHROMIUM_UPDATE_URL_CROMITE L"https://github.com/uazo/cromite/releases/latest/download/updateurl.txt"
 
-#define CHROMIUM_TYPE L"dev-official"
+#define CHROMIUM_TYPE L"ungoogled-chromium"
 #define CHROMIUM_COMMAND_LINE L"--flag-switches-begin --user-data-dir=..\\profile --no-default-browser-check --disable-logging --no-report-upload --flag-switches-end"
 
 typedef struct _BROWSER_INFORMATION

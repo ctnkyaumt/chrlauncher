@@ -9,6 +9,8 @@
 #include "CpuArch.h"
 
 #include <tlhelp32.h>
+#include <taskschd.h>
+#include <oleauto.h>
 
 #include "7z.h"
 #include "7zAlloc.h"
@@ -290,6 +292,163 @@ BOOLEAN _app_taskupdate_istaskpresent ()
 	return is_exists;
 }
 
+BOOLEAN _app_taskupdate_setstartwhenavailable ()
+{
+	ITaskService *task_service = NULL;
+	ITaskFolder *task_folder = NULL;
+	IRegisteredTask *registered_task = NULL;
+	ITaskDefinition *task_definition = NULL;
+	ITaskSettings *task_settings = NULL;
+	IPrincipal *task_principal = NULL;
+	IRegisteredTask *registered_task_new = NULL;
+
+	BSTR folder_path = NULL;
+	BSTR task_name = NULL;
+	BSTR user_id = NULL;
+
+	VARIANT var_empty = {0};
+	VARIANT var_user = {0};
+	VARIANT var_sddl = {0};
+
+	CLSID task_service_clsid = {0};
+	IID task_service_iid = {0};
+
+	HRESULT status;
+	TASK_LOGON_TYPE logon_type = TASK_LOGON_INTERACTIVE_TOKEN;
+	BOOLEAN is_success = FALSE;
+
+	VariantInit (&var_empty);
+	VariantInit (&var_user);
+	VariantInit (&var_sddl);
+
+	var_empty.vt = VT_EMPTY;
+	var_sddl.vt = VT_EMPTY;
+
+	status = CLSIDFromString (L"{0F87369F-A4E5-4CFC-BD3E-73E6154572DD}", &task_service_clsid);
+
+	if (FAILED (status))
+		goto CleanupExit;
+
+	status = IIDFromString (L"{2FABA4C7-4DA9-4013-9697-20CC3FD40F85}", &task_service_iid);
+
+	if (FAILED (status))
+		goto CleanupExit;
+
+	status = CoCreateInstance (&task_service_clsid, NULL, CLSCTX_INPROC_SERVER, &task_service_iid, (PVOID_PTR)&task_service);
+
+	if (FAILED (status) || !task_service)
+		goto CleanupExit;
+
+	status = task_service->lpVtbl->Connect (task_service, var_empty, var_empty, var_empty, var_empty);
+
+	if (FAILED (status))
+		goto CleanupExit;
+
+	folder_path = SysAllocString (L"\\chrlauncher");
+	task_name = SysAllocString (L"AutoUpdate");
+
+	if (!folder_path || !task_name)
+		goto CleanupExit;
+
+	status = task_service->lpVtbl->GetFolder (task_service, folder_path, &task_folder);
+
+	if (FAILED (status) || !task_folder)
+		goto CleanupExit;
+
+	status = task_folder->lpVtbl->GetTask (task_folder, task_name, &registered_task);
+
+	if (FAILED (status) || !registered_task)
+		goto CleanupExit;
+
+	status = registered_task->lpVtbl->get_Definition (registered_task, &task_definition);
+
+	if (FAILED (status) || !task_definition)
+		goto CleanupExit;
+
+	status = task_definition->lpVtbl->get_Settings (task_definition, &task_settings);
+
+	if (FAILED (status) || !task_settings)
+		goto CleanupExit;
+
+	status = task_settings->lpVtbl->put_StartWhenAvailable (task_settings, VARIANT_TRUE);
+
+	if (FAILED (status))
+		goto CleanupExit;
+
+	status = task_definition->lpVtbl->get_Principal (task_definition, &task_principal);
+
+	if (SUCCEEDED (status) && task_principal)
+	{
+		status = task_principal->lpVtbl->get_LogonType (task_principal, &logon_type);
+
+		if (FAILED (status))
+			logon_type = TASK_LOGON_INTERACTIVE_TOKEN;
+
+		status = task_principal->lpVtbl->get_UserId (task_principal, &user_id);
+
+		if (SUCCEEDED (status) && user_id)
+		{
+			var_user.vt = VT_BSTR;
+			var_user.bstrVal = user_id;
+			user_id = NULL;
+		}
+	}
+
+	status = task_folder->lpVtbl->RegisterTaskDefinition (
+		task_folder,
+		task_name,
+		task_definition,
+		TASK_CREATE_OR_UPDATE,
+		var_user,
+		var_empty,
+		logon_type,
+		var_sddl,
+		&registered_task_new
+	);
+
+	if (FAILED (status) || !registered_task_new)
+		goto CleanupExit;
+
+	is_success = TRUE;
+
+CleanupExit:
+	if (registered_task_new)
+		registered_task_new->lpVtbl->Release (registered_task_new);
+
+	if (task_principal)
+		task_principal->lpVtbl->Release (task_principal);
+
+	if (task_settings)
+		task_settings->lpVtbl->Release (task_settings);
+
+	if (task_definition)
+		task_definition->lpVtbl->Release (task_definition);
+
+	if (registered_task)
+		registered_task->lpVtbl->Release (registered_task);
+
+	if (task_folder)
+		task_folder->lpVtbl->Release (task_folder);
+
+	if (task_service)
+		task_service->lpVtbl->Release (task_service);
+
+	VariantClear (&var_user);
+	VariantClear (&var_empty);
+	VariantClear (&var_sddl);
+
+	if (folder_path)
+		SysFreeString (folder_path);
+
+	if (task_name)
+		SysFreeString (task_name);
+
+	if (user_id)
+		SysFreeString (user_id);
+
+	return is_success;
+}
+
 BOOLEAN _app_taskupdate_createtask ()
 {
 	WCHAR exe_path[4096] = {0};
@@ -313,6 +472,9 @@ BOOLEAN _app_taskupdate_createtask ()
 
 		_r_obj_dereference (cmdline);
 	}
+
+	if (is_success)
+		is_success = _app_taskupdate_setstartwhenavailable ();
 
 	return is_success;
 }
@@ -713,7 +875,7 @@ VOID _app_init_browser_info (
 		pbi->is_waitdownloadend = _r_config_getboolean (L"ChromiumWaitForDownloadEnd", TRUE);
 
 	if (!pbi->is_onlyupdate)
-		pbi->is_onlyupdate = _r_config_getboolean (L"ChromiumUpdateOnly", FALSE);
+		pbi->is_onlyupdate = _r_config_getboolean (L"ChromiumUpdateOnly", TRUE);
 
 	// rewrite options when update-only mode is enabled
 	if (pbi->is_onlyupdate)
@@ -960,7 +1122,17 @@ BOOLEAN _app_checkupdate (
 
 	if (!is_exists || is_updaterequired)
 	{
-		update_url = _r_config_getstring (L"ChromiumUpdateUrl", CHROMIUM_UPDATE_URL);
+		R_STRINGREF cromite_type = PR_STRINGREF_INIT (L"cromite");
+
+		update_url = _r_config_getstring (L"ChromiumUpdateUrl", NULL);
+
+		if (!update_url)
+		{
+			if (pbi->browser_type && _r_str_isequal (&pbi->browser_type->sr, &cromite_type, TRUE))
+				update_url = _r_obj_createstring (CHROMIUM_UPDATE_URL_CROMITE);
+			else
+				update_url = _r_obj_createstring (CHROMIUM_UPDATE_URL);
+		}
 
 		if (!update_url)
 			return FALSE;
@@ -1947,6 +2119,10 @@ INT_PTR CALLBACK DlgProc (
 				{
 					is_taskenabled = FALSE;
 					_r_config_setboolean (L"TaskUpdateEnabled", FALSE);
+				}
+				else if (is_taskenabled)
+				{
+					_app_taskupdate_setstartwhenavailable ();
 				}
 
 				_r_menu_checkitem (hmenu, IDM_RUNATEND_CHK, 0, MF_BYCOMMAND, _r_config_getboolean (L"ChromiumRunAtEnd", TRUE));
