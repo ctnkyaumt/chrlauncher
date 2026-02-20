@@ -97,7 +97,7 @@
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
-    <OutDir>$(SolutionDir)bin\$(PlatformArchitecture)\</OutDir>
+    <OutDir>$(SolutionDir)bin\32\</OutDir>
     <TargetName>$(ProjectName)</TargetName>
     <IncludePath>$(VC_IncludePath);$(WindowsSDK_IncludePath);.\..\routine\src\;.\src\lzma\;.\src\</IncludePath>
     <LibraryPath>$(VC_LibraryPath_x86);$(WindowsSDK_LibraryPath_x86);$(NETFXKitsDir)Lib\um\x86;.\src\lib\32\</LibraryPath>
@@ -106,7 +106,7 @@
     <CodeAnalysisRuleSet>MixedRecommendedRules.ruleset</CodeAnalysisRuleSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
-    <OutDir>$(SolutionDir)bin\$(PlatformArchitecture)\</OutDir>
+    <OutDir>$(SolutionDir)bin\32\</OutDir>
     <TargetName>$(ProjectName)</TargetName>
     <IncludePath>$(VC_IncludePath);$(WindowsSDK_IncludePath);.\..\routine\src\;.\src\lzma\;.\src\</IncludePath>
     <LibraryPath>$(VC_LibraryPath_x86);$(WindowsSDK_LibraryPath_x86);$(NETFXKitsDir)Lib\um\x86;.\src\lib\32\</LibraryPath>
@@ -115,7 +115,7 @@
     <CodeAnalysisRuleSet>MixedRecommendedRules.ruleset</CodeAnalysisRuleSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-    <OutDir>$(SolutionDir)bin\$(PlatformArchitecture)\</OutDir>
+    <OutDir>$(SolutionDir)bin\64\</OutDir>
     <TargetName>$(ProjectName)</TargetName>
     <IncludePath>$(VC_IncludePath);$(WindowsSDK_IncludePath);.\..\routine\src\;.\src\lzma\;.\src\</IncludePath>
     <LibraryPath>$(VC_LibraryPath_x64);$(WindowsSDK_LibraryPath_x64);$(NETFXKitsDir)Lib\um\x64;.\src\lib\64\</LibraryPath>
@@ -129,10 +129,10 @@
     <GenerateManifest>false</GenerateManifest>
     <IntDir>$(Platform)\$(Configuration)\$(ProjectName)\</IntDir>
     <CodeAnalysisRuleSet>MixedRecommendedRules.ruleset</CodeAnalysisRuleSet>
-    <OutDir>$(SolutionDir)bin\$(PlatformArchitecture)\</OutDir>
+    <OutDir>$(SolutionDir)bin\ARM64\</OutDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
-    <OutDir>$(SolutionDir)bin\$(PlatformArchitecture)\</OutDir>
+    <OutDir>$(SolutionDir)bin\64\</OutDir>
     <TargetName>$(ProjectName)</TargetName>
     <IncludePath>$(VC_IncludePath);$(WindowsSDK_IncludePath);.\..\routine\src\;.\src\lzma\;.\src\</IncludePath>
     <LibraryPath>$(VC_LibraryPath_x64);$(WindowsSDK_LibraryPath_x64);$(NETFXKitsDir)Lib\um\x64;.\src\lib\64\</LibraryPath>
@@ -146,7 +146,7 @@
     <GenerateManifest>false</GenerateManifest>
     <IntDir>$(Platform)\$(Configuration)\$(ProjectName)\</IntDir>
     <CodeAnalysisRuleSet>MixedRecommendedRules.ruleset</CodeAnalysisRuleSet>
-    <OutDir>$(SolutionDir)bin\$(PlatformArchitecture)\</OutDir>
+    <OutDir>$(SolutionDir)bin\ARM64\</OutDir>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>

@@ -24,10 +24,10 @@ jobs:
           }
 
       - name: Build Release x64
-        run: msbuild .\chrlauncher.sln /m /p:Configuration=Release /p:Platform=x64 /p:PlatformToolset=v143
+        run: msbuild .\chrlauncher.vcxproj /m /p:Configuration=Release /p:Platform=x64 /p:PlatformToolset=v143
 
       - name: Build Release Win32
-        run: msbuild .\chrlauncher.sln /m /p:Configuration=Release /p:Platform=Win32 /p:PlatformToolset=v143
+        run: msbuild .\chrlauncher.vcxproj /m /p:Configuration=Release /p:Platform=Win32 /p:PlatformToolset=v143
 
       - name: Package
         shell: pwsh
