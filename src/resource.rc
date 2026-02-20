@@ -140,7 +140,7 @@ BEGIN
 	IDS_TASKUPDATE_CHK "Enable scheduled auto-update"
 	IDS_STATUS_RESTARTNOTICE "Chromium will be restarted to apply the update."
 	IDS_STATUS_RETRYINSTALL "Update downloaded, but Chromium is still running. Will retry later."
-	IDS_QUESTION_TASKENABLE "Create a scheduled task that checks for updates every 7 minutes and may restart running Chromium to apply updates?"
+	IDS_QUESTION_TASKENABLE "Create a scheduled task that checks for updates every 14 days and may restart running Chromium to apply updates?"
 END
 
 //

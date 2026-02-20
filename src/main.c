@@ -8,6 +8,8 @@
 
 #include "CpuArch.h"
 
+#include <tlhelp32.h>
+
 #include "7z.h"
 #include "7zAlloc.h"
 #include "7zBuf.h"
@@ -121,6 +123,102 @@ BOOL CALLBACK close_browser_window_callback (
 	return TRUE;
 }
 
+BOOLEAN _app_taskupdate_terminateprocesses (
+	_In_ PBROWSER_INFORMATION pbi
+)
+{
+	HANDLE hsnapshot;
+	PROCESSENTRY32W pe32 = {0};
+	PR_STRING process_path;
+	HANDLE hprocess;
+	ULONG terminate_count = 0;
+	NTSTATUS status;
+
+	hsnapshot = CreateToolhelp32Snapshot (TH32CS_SNAPPROCESS, 0);
+
+	if (hsnapshot == INVALID_HANDLE_VALUE)
+		return FALSE;
+
+	pe32.dwSize = sizeof (pe32);
+
+	if (Process32FirstW (hsnapshot, &pe32))
+	{
+		do
+		{
+			if ((HANDLE)(ULONG_PTR)pe32.th32ProcessID == NtCurrentProcessId ())
+				continue;
+
+			status = _r_sys_openprocess ((HANDLE)(ULONG_PTR)pe32.th32ProcessID, PROCESS_QUERY_LIMITED_INFORMATION | PROCESS_TERMINATE, &hprocess);
+
+			if (!NT_SUCCESS (status))
+				continue;
+
+			status = _r_sys_queryprocessstring (hprocess, ProcessImageFileNameWin32, &process_path);
+
+			if (NT_SUCCESS (status))
+			{
+				if (_r_str_isequal (&pbi->binary_path->sr, &process_path->sr, TRUE))
+				{
+					if (TerminateProcess (hprocess, 0))
+						terminate_count += 1;
+				}
+
+				_r_obj_dereference (process_path);
+			}
+
+			NtClose (hprocess);
+		}
+		while (Process32NextW (hsnapshot, &pe32));
+	}
+
+	CloseHandle (hsnapshot);
+
+	return (terminate_count != 0);
+}
+
+VOID _app_taskupdate_closebrowser (
+	_In_ PBROWSER_INFORMATION pbi,
+	_Out_ PBOOLEAN was_running_ptr
+)
+{
+	CLOSE_BROWSER_CONTEXT close_ctx = {0};
+	BOOLEAN was_running = FALSE;
+
+	close_ctx.pbi = pbi;
+
+	EnumWindows (&close_browser_window_callback, (LPARAM)&close_ctx);
+
+	if (close_ctx.count != 0 || _r_fs_isfileused (&pbi->binary_path->sr))
+	{
+		_r_tray_popup (pbi->hwnd, &GUID_TrayIcon, NIIF_INFO, _r_app_getname (), _r_locale_getstring (IDS_STATUS_RESTARTNOTICE));
+
+		was_running = TRUE;
+
+		for (INT i = 0; i < 40; i++)
+		{
+			if (!_r_fs_isfileused (&pbi->binary_path->sr))
+				break;
+
+			Sleep (500);
+		}
+
+		if (_r_fs_isfileused (&pbi->binary_path->sr))
+		{
+			_app_taskupdate_terminateprocesses (pbi);
+
+			for (INT i = 0; i < 40; i++)
+			{
+				if (!_r_fs_isfileused (&pbi->binary_path->sr))
+					break;
+
+				Sleep (500);
+			}
+		}
+	}
+
+	*was_running_ptr = was_running;
+}
+
 BOOLEAN _app_runprocess_wait (
 	_In_ LPCWSTR cmdline,
 	_Out_opt_ PULONG exit_code_ptr
@@ -203,7 +301,7 @@ BOOLEAN _app_taskupdate_createtask ()
 		return FALSE;
 
 	cmdline = _r_format_string (
-		L"schtasks.exe /Create /TN \"%s\" /SC MINUTE /MO 7 /F /RL LIMITED /TR \"\\\"%s\\\" /taskupdate\"",
+		L"schtasks.exe /Create /TN \"%s\" /SC DAILY /MO 14 /ST 00:00 /F /RL LIMITED /TR \"\\\"%s\\\" /taskupdate\"",
 		TASKUPDATE_TASK_NAME,
 		exe_path
 	);
@@ -627,7 +725,7 @@ VOID _app_init_browser_info (
 
 	if (pbi->is_taskupdate)
 	{
-		pbi->is_onlyupdate = TRUE;
+		pbi->is_onlyupdate = FALSE;
 		pbi->is_autodownload = TRUE;
 		pbi->is_forcecheck = TRUE;
 		pbi->is_bringtofront = FALSE;
@@ -1555,31 +1653,28 @@ VOID _app_thread_check (
 
 	if (pbi->is_taskupdate)
 	{
-		CLOSE_BROWSER_CONTEXT close_ctx = {0};
 		PR_STRING saved_args = NULL;
 		PR_STRING restore_args = NULL;
 		BOOLEAN was_running = FALSE;
 
-		close_ctx.pbi = pbi;
+		_app_taskupdate_closebrowser (pbi, &was_running);
 
 		if (!_app_isupdatedownloaded (pbi))
 		{
-			_app_checkupdate (hwnd, pbi, &is_haveerror);
+			if (!_app_checkupdate (hwnd, pbi, &is_haveerror))
+				is_haveerror = TRUE;
 
-			if (is_haveerror || !_app_ishaveupdate (pbi))
-				goto TaskUpdateCleanup;
+			if (is_haveerror)
+				goto TaskUpdateRelaunch;
+
+			if (!_app_ishaveupdate (pbi))
+			{
+				_r_show_message (hwnd, MB_OK | MB_ICONINFORMATION, NULL, L"No updates found!");
+				goto TaskUpdateRelaunch;
+			}
 
 			if (!_app_downloadupdate (hwnd, pbi, &is_haveerror) || is_haveerror)
-				goto TaskUpdateCleanup;
-		}
-
-		if (_r_fs_isfileused (&pbi->binary_path->sr))
-		{
-			_r_tray_popup (hwnd, &GUID_TrayIcon, NIIF_INFO, _r_app_getname (), _r_locale_getstring (IDS_STATUS_RESTARTNOTICE));
-
-			EnumWindows (&close_browser_window_callback, (LPARAM)&close_ctx);
-
-			was_running = (close_ctx.count != 0);
+				goto TaskUpdateRelaunch;
 		}
 
 		for (INT i = 0; i < 14; i++)
@@ -1603,9 +1698,10 @@ VOID _app_thread_check (
 			if (_r_fs_isfileused (&pbi->binary_path->sr))
 				_r_tray_popup (hwnd, &GUID_TrayIcon, NIIF_INFO, _r_app_getname (), _r_locale_getstring (IDS_STATUS_RETRYINSTALL));
 
-			goto TaskUpdateCleanup;
+			goto TaskUpdateRelaunch;
 		}
 
+TaskUpdateRelaunch:
 		if (was_running)
 		{
 			restore_args = _r_obj_concatstrings (2, _r_obj_getstring (pbi->args_str), L" --restore-last-session");
@@ -1620,6 +1716,10 @@ VOID _app_thread_check (
 
 			if (saved_args)
 				_r_obj_movereference ((PVOID_PTR)&pbi->args_str, saved_args);
+		}
+		else
+		{
+			_app_openbrowser (pbi);
 		}
 
 TaskUpdateCleanup:
