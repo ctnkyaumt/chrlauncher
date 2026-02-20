@@ -102,10 +102,10 @@ ChromiumType=dev-official
 
 # Check for new Chromium version once in X days (integer):
 #
-# 2	-> check updates once in a X days (default)
+# 2	-> check updates once in a X days
 # 0	-> disable update checking
 # -1	-> force update checking
-ChromiumCheckPeriod=2
+ChromiumCheckPeriod=0
 
 # Last cached update checking timestamp (integer):
 ChromiumLastCheck=0

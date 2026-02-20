@@ -216,6 +216,16 @@
       <MinimumRequiredVersion>6.1</MinimumRequiredVersion>
       <CETCompat>true</CETCompat>
     </Link>
+    <PostBuildEvent>
+      <Command>copy /Y "$(SolutionDir)bin\chrlauncher.ini" "$(OutDir)" &gt;nul
+copy /Y "$(SolutionDir)bin\chrlauncher.lng" "$(OutDir)" &gt;nul
+copy /Y "$(SolutionDir)bin\History.txt" "$(OutDir)" &gt;nul
+copy /Y "$(SolutionDir)bin\License.txt" "$(OutDir)" &gt;nul
+copy /Y "$(SolutionDir)bin\Readme.txt" "$(OutDir)" &gt;nul
+copy /Y "$(SolutionDir)bin\RegistryCleaner.reg" "$(OutDir)" &gt;nul
+copy /Y "$(SolutionDir)bin\SetDefaultBrowser.bat" "$(OutDir)" &gt;nul
+xcopy /E /I /Y "$(SolutionDir)bin\i18n" "$(OutDir)i18n" &gt;nul</Command>
+    </PostBuildEvent>
     <ResourceCompile>
       <PreprocessorDefinitions>_UNICODE;UNICODE;_WIN64;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ResourceCompile>
@@ -332,6 +342,16 @@
       <CETCompat>true</CETCompat>
       <LinkTimeCodeGeneration>UseLinkTimeCodeGeneration</LinkTimeCodeGeneration>
     </Link>
+    <PostBuildEvent>
+      <Command>copy /Y "$(SolutionDir)bin\chrlauncher.ini" "$(OutDir)" &gt;nul
+copy /Y "$(SolutionDir)bin\chrlauncher.lng" "$(OutDir)" &gt;nul
+copy /Y "$(SolutionDir)bin\History.txt" "$(OutDir)" &gt;nul
+copy /Y "$(SolutionDir)bin\License.txt" "$(OutDir)" &gt;nul
+copy /Y "$(SolutionDir)bin\Readme.txt" "$(OutDir)" &gt;nul
+copy /Y "$(SolutionDir)bin\RegistryCleaner.reg" "$(OutDir)" &gt;nul
+copy /Y "$(SolutionDir)bin\SetDefaultBrowser.bat" "$(OutDir)" &gt;nul
+xcopy /E /I /Y "$(SolutionDir)bin\i18n" "$(OutDir)i18n" &gt;nul</Command>
+    </PostBuildEvent>
     <ResourceCompile>
       <PreprocessorDefinitions>_UNICODE;UNICODE;_WIN64;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ResourceCompile>

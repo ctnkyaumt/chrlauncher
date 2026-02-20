@@ -30,9 +30,17 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          New-Item -ItemType Directory -Force -Path dist | Out-Null
-          Copy-Item -Recurse -Force -Path .\bin\64 -Destination .\dist\64
-          Compress-Archive -Force -Path .\dist\* -DestinationPath .\chrlauncher-bin.zip
+          $outDir = Join-Path $PWD 'bin\x64'
+          if (!(Test-Path $outDir)) { throw "Build output folder not found: $outDir" }
+
+          New-Item -ItemType Directory -Force -Path .\dist\chrlauncher\64 | Out-Null
+
+          Copy-Item -Recurse -Force `
+            -Path (Join-Path $outDir '*') `
+            -Destination .\dist\chrlauncher\64 `
+            -Exclude *.pdb,*.ipdb,*.iobj
+
+          Compress-Archive -Force -Path .\dist\chrlauncher -DestinationPath .\chrlauncher-bin.zip
 
       - uses: actions/upload-artifact@v4
         with:

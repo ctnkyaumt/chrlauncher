@@ -599,7 +599,7 @@ VOID _app_init_browser_info (
 	// parse arguments
 	_app_parse_args (pbi);
 
-	pbi->check_period = _r_config_getlong (L"ChromiumCheckPeriod", 2);
+	pbi->check_period = _r_config_getlong (L"ChromiumCheckPeriod", 0);
 
 	if (pbi->check_period == INT_ERROR)
 		pbi->is_forcecheck = TRUE;
