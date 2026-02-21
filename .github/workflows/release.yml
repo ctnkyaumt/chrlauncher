@@ -21,8 +21,16 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          submodules: false
 
       - uses: microsoft/setup-msbuild@v2
+
+      - name: Disable submodule recursion
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          git config --global fetch.recurseSubmodules false
+          git config --global submodule.recurse false
 
       - name: Fetch routine dependency
         shell: pwsh
@@ -38,17 +46,12 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
 
-          git fetch --tags --force
+          git -c fetch.recurseSubmodules=false fetch --tags --force --no-recurse-submodules
 
           $bump = '${{ inputs.bump }}'.ToLowerInvariant()
           if ($bump -notin @('major', 'minor', 'patch')) { throw "Invalid bump: $bump" }
 
-          $lastTag = $null
-          try {
-            $lastTag = (git describe --tags --abbrev=0 --match "v*").Trim()
-          } catch {
-            $lastTag = $null
-          }
+          $lastTag = (git tag --list "v*" --sort=-v:refname | Select-Object -First 1)
 
           $lastVersionText = $null
           if ($lastTag) {
@@ -104,9 +107,9 @@ jobs:
 
           $notes = @()
           if ($lastTag) {
-            $notes = git log "$lastTag..HEAD" --no-merges --pretty=format:"- %s"
+            $notes = git -c submodule.recurse=false log "$lastTag..HEAD" --no-merges --pretty=format:"- %s"
           } else {
-            $notes = git log -n 30 --no-merges --pretty=format:"- %s"
+            $notes = git -c submodule.recurse=false log -n 30 --no-merges --pretty=format:"- %s"
           }
 
           $notes = $notes |
@@ -140,6 +143,12 @@ jobs:
           git add bin/History.txt
           git commit -m "release: ${{ steps.version.outputs.tag }}" || exit 0
           git push
+
+          $tag = '${{ steps.version.outputs.tag }}'
+          $exists = (git tag --list $tag | Select-Object -First 1)
+          if ($exists) { throw "Tag already exists: $tag" }
+          git tag $tag
+          git push origin $tag
 
       - name: Build Release x64
         run: msbuild .\chrlauncher.vcxproj /m /p:Configuration=Release /p:Platform=x64 /p:PlatformToolset=v143
