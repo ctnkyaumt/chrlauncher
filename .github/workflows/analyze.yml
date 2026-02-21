@@ -13,13 +13,23 @@ jobs:
     runs-on: windows-2022
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: false
+
+      - name: Disable submodule recursion
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          git config --global fetch.recurseSubmodules false
+          git config --global submodule.recurse false
 
       - name: Install analyzers
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          choco install -y cppcheck --no-progress *> $null
-          choco install -y gitleaks --no-progress *> $null
+          choco install -y cppcheck --no-progress | Out-Null
+          choco install -y gitleaks --no-progress | Out-Null
+          echo "C:\Program Files\Cppcheck" >> $env:GITHUB_PATH
 
       - name: Run cppcheck
         shell: pwsh
@@ -61,6 +71,7 @@ jobs:
             --exit-code 0 *> $null
 
       - name: Summarize
+        if: always()
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
@@ -74,7 +85,7 @@ jobs:
 
           if (Test-Path $cppcheckXml) {
             [xml]$x = Get-Content -LiteralPath $cppcheckXml -Raw
-            $errors = @($x.results.errors.error)
+            $errors = @($x.results.errors.error) | Where-Object { $_ }
             $total = $errors.Count
             $summary.Add('### cppcheck')
             $summary.Add("- Findings: $total")
