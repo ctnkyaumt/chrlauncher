@@ -2,9 +2,6 @@ name: build-zip
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - master
   pull_request:
 
 jobs:
@@ -60,5 +57,5 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: chrlauncher-bin
+          name: chrlauncher-bin.zip
           path: chrlauncher-bin.zip

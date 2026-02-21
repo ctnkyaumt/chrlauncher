@@ -1,9 +1,10 @@
-v2.7 (20 February 2026)
-- fixed building against latest routine sdk
+v2.7 (21 February 2026)
+- added Cromite updater support (ChromiumType=cromite)
+- changed defaults: ChromiumType=ungoogled-chromium and ChromiumUpdateOnly=true
+- added scheduled auto-update toggle with restart notice
 - fixed empty Language submenu after adding new Settings items
 - changed default update checking to disabled (ChromiumCheckPeriod=0)
-- improved CI artifact packaging (include full release file set)
-- added scheduled auto-update toggle with restart notice
+- improved CI artifact naming (.zip extension)
 - fixed bugs
 
 v2.6 (14 January 2022)
