@@ -89,10 +89,30 @@ jobs:
             $total = $errors.Count
             $summary.Add('### cppcheck')
             $summary.Add("- Findings: $total")
+            
             if ($total -gt 0) {
-              $bySeverity = $errors | Group-Object -Property severity | Sort-Object -Property Count -Descending
-              foreach ($g in $bySeverity) {
-                $summary.Add("- $($g.Name): $($g.Count)")
+              $summary.Add('| Severity | File | Line | Message |')
+              $summary.Add('| :--- | :--- | :--- | :--- |')
+              
+              foreach ($err in $errors) {
+                $severity = $err.severity
+                $msg = $err.msg
+                $file = "N/A"
+                $line = "0"
+                
+                if ($err.location) {
+                   # location can be an array if multiple locations are involved, take the first one
+                   $loc = @($err.location)[0]
+                   $file = $loc.file
+                   if ($file) {
+                     if ($file.StartsWith($PWD)) {
+                       $file = $file.Substring($PWD.Length).TrimStart('\/')
+                     }
+                   }
+                   $line = $loc.line
+                }
+                
+                $summary.Add("| $severity | $file | $line | $msg |")
               }
             }
             $summary.Add('')
@@ -107,6 +127,27 @@ jobs:
             $count = @($findings).Count
             $summary.Add('### gitleaks')
             $summary.Add("- Findings: $count")
+            
+            if ($count -gt 0) {
+              $summary.Add('| Rule | File | Line | Secret |')
+              $summary.Add('| :--- | :--- | :--- | :--- |')
+              foreach ($f in $findings) {
+                $rule = $f.RuleID
+                $file = $f.File
+                $line = $f.StartLine
+                $secret = $f.Secret
+                if ($secret) {
+                    if ($secret.Length -gt 4) {
+                       $secret = $secret.Substring(0, 2) + "***" + $secret.Substring($secret.Length - 2)
+                    } else {
+                       $secret = "***"
+                    }
+                } else {
+                    $secret = "***"
+                }
+                $summary.Add("| $rule | $file | $line | $secret |")
+              }
+            }
             $summary.Add('')
           }
 
