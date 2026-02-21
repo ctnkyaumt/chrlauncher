@@ -14,6 +14,9 @@ permissions:
 jobs:
   release:
     runs-on: windows-2022
+    env:
+      GPG_PRIVATE_KEY_B64: ${{ secrets.GPG_PRIVATE_KEY_B64 }}
+      GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -179,17 +182,15 @@ jobs:
           "zip=$zipName" >> $env:GITHUB_OUTPUT
 
       - name: Install GnuPG
-        if: ${{ secrets.GPG_PRIVATE_KEY_B64 }}
+        if: ${{ env.GPG_PRIVATE_KEY_B64 != '' }}
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
           choco install gnupg -y
 
       - name: Import signing key
-        if: ${{ secrets.GPG_PRIVATE_KEY_B64 }}
+        if: ${{ env.GPG_PRIVATE_KEY_B64 != '' }}
         shell: pwsh
-        env:
-          GPG_PRIVATE_KEY_B64: ${{ secrets.GPG_PRIVATE_KEY_B64 }}
         run: |
           $ErrorActionPreference = 'Stop'
           $keyBytes = [Convert]::FromBase64String($env:GPG_PRIVATE_KEY_B64)
@@ -197,10 +198,8 @@ jobs:
           $keyText | gpg --batch --import
 
       - name: Sign release zip
-        if: ${{ secrets.GPG_PRIVATE_KEY_B64 }}
+        if: ${{ env.GPG_PRIVATE_KEY_B64 != '' }}
         shell: pwsh
-        env:
-          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
         run: |
           $ErrorActionPreference = 'Stop'
           $zipName = '${{ steps.package.outputs.zip }}'
@@ -223,7 +222,7 @@ jobs:
             ${{ steps.package.outputs.zip }}
 
       - name: Upload signature
-        if: ${{ secrets.GPG_PRIVATE_KEY_B64 }}
+        if: ${{ env.GPG_PRIVATE_KEY_B64 != '' }}
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.version.outputs.tag }}
