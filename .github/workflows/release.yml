@@ -190,12 +190,32 @@ jobs:
           Compress-Archive -Force -Path .\dist\chrlauncher -DestinationPath (Join-Path $PWD $zipName)
           "zip=$zipName" >> $env:GITHUB_OUTPUT
 
-      - name: Install GnuPG
+      - name: Check GnuPG
+        id: gpgcheck
         if: ${{ env.GPG_PRIVATE_KEY_B64 != '' }}
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          choco install gnupg -y
+          $needInstall = $true
+
+          $gpg = Get-Command gpg -ErrorAction SilentlyContinue
+          if ($gpg) {
+            try {
+              & gpg --version | Out-Null
+              $needInstall = $false
+            } catch {
+              $needInstall = $true
+            }
+          }
+
+          "need_install=$needInstall" >> $env:GITHUB_OUTPUT
+
+      - name: Install GnuPG
+        if: ${{ env.GPG_PRIVATE_KEY_B64 != '' && steps.gpgcheck.outputs.need_install == 'True' }}
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          choco install gnupg -y --no-progress
 
       - name: Import signing key
         if: ${{ env.GPG_PRIVATE_KEY_B64 != '' }}
