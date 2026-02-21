@@ -6,20 +6,10 @@ on:
       version_source:
         description: Version source
         required: true
-        type: choice
-        options:
-          - auto_bump
-          - history_latest
-          - manual
         default: history_latest
       bump:
         description: Version bump (major/minor/patch)
         required: true
-        type: choice
-        options:
-          - minor
-          - patch
-          - major
         default: minor
       version:
         description: Manual version (for example: 2.7)
@@ -28,15 +18,10 @@ on:
       update_history:
         description: Update bin/History.txt automatically
         required: true
-        type: boolean
         default: false
       notes_source:
         description: Release notes source
         required: true
-        type: choice
-        options:
-          - history
-          - commits
         default: history
 
 permissions:
