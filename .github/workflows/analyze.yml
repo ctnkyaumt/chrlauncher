@@ -54,8 +54,8 @@ jobs:
             --xml-version=2 `
             --suppress=missingIncludeSystem `
             --suppress=unusedFunction `
-            -i (Join-Path $PWD 'src\lzma') `
-            @paths 2> $cppcheckXml
+            "-i$(Join-Path $PWD 'src\lzma')" `
+            $paths 2> $cppcheckXml
 
       - name: Run gitleaks
         shell: pwsh
