@@ -3403,8 +3403,10 @@ static MZ_TIME_T mz_zip_dos_to_time_t(int dos_time, int dos_date)
 static void mz_zip_time_t_to_dos_time(MZ_TIME_T time, mz_uint16 *pDOS_time, mz_uint16 *pDOS_date)
 {
 #ifdef _MSC_VER
-    struct tm tm_struct;
+    struct tm tm_struct = {0};
     struct tm *tm = &tm_struct;
+    // cppcheck-suppress uninitvar
+    // cppcheck-suppress portability
     errno_t err = localtime_s(tm, &time);
     if (err)
     {
@@ -3713,7 +3715,6 @@ static mz_bool mz_zip_reader_read_central_dir(mz_zip_archive *pZip, mz_uint flag
                 /* Attempt to find zip64 extended information field in the entry's extra data */
                 mz_uint32 extra_size_remaining = ext_data_size;
 
-                if (extra_size_remaining)
                 {
 					const mz_uint8 *pExtra_data;
 					void* buf = NULL;
@@ -5622,7 +5623,7 @@ mz_bool mz_zip_writer_add_mem_ex_v2(mz_zip_archive *pZip, const char *pArchive_n
 {
     mz_uint16 method = 0, dos_time = 0, dos_date = 0;
     mz_uint level, ext_attributes = 0, num_alignment_padding_bytes;
-    mz_uint64 local_dir_header_ofs = pZip->m_archive_size, cur_archive_file_ofs = pZip->m_archive_size, comp_size = 0;
+    mz_uint64 local_dir_header_ofs = 0, cur_archive_file_ofs = 0, comp_size = 0;
     size_t archive_name_size;
     mz_uint8 local_dir_header[MZ_ZIP_LOCAL_DIR_HEADER_SIZE];
     tdefl_compressor *pComp = NULL;
@@ -5647,6 +5648,9 @@ mz_bool mz_zip_writer_add_mem_ex_v2(mz_zip_archive *pZip, const char *pArchive_n
 
     if ((!pZip) || (!pZip->m_pState) || (pZip->m_zip_mode != MZ_ZIP_MODE_WRITING) || ((buf_size) && (!pBuf)) || (!pArchive_name) || ((comment_size) && (!pComment)) || (level > MZ_UBER_COMPRESSION))
         return mz_zip_set_error(pZip, MZ_ZIP_INVALID_PARAMETER);
+    
+    local_dir_header_ofs = pZip->m_archive_size;
+    cur_archive_file_ofs = pZip->m_archive_size;
 
     pState = pZip->m_pState;
 
@@ -5908,7 +5912,7 @@ mz_bool mz_zip_writer_add_read_buf_callback(mz_zip_archive *pZip, const char *pA
     mz_uint16 gen_flags;
     mz_uint uncomp_crc32 = MZ_CRC32_INIT, level, num_alignment_padding_bytes;
     mz_uint16 method = 0, dos_time = 0, dos_date = 0, ext_attributes = 0;
-    mz_uint64 local_dir_header_ofs, cur_archive_file_ofs = pZip->m_archive_size, uncomp_size = 0, comp_size = 0;
+    mz_uint64 local_dir_header_ofs, cur_archive_file_ofs = 0, uncomp_size = 0, comp_size = 0;
     size_t archive_name_size;
     mz_uint8 local_dir_header[MZ_ZIP_LOCAL_DIR_HEADER_SIZE];
     mz_uint8 *pExtra_data = NULL;
@@ -5929,6 +5933,8 @@ mz_bool mz_zip_writer_add_read_buf_callback(mz_zip_archive *pZip, const char *pA
     /* Sanity checks */
     if ((!pZip) || (!pZip->m_pState) || (pZip->m_zip_mode != MZ_ZIP_MODE_WRITING) || (!pArchive_name) || ((comment_size) && (!pComment)) || (level > MZ_UBER_COMPRESSION))
         return mz_zip_set_error(pZip, MZ_ZIP_INVALID_PARAMETER);
+    
+    cur_archive_file_ofs = pZip->m_archive_size;
 
     pState = pZip->m_pState;
 

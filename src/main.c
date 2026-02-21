@@ -805,7 +805,7 @@ VOID _app_init_browser_info (
 
 	binary_dir = _r_sys_gettempdirectory ();
 
-	string = _r_format_string (L"%s\\%s_%" TEXT (PR_ULONG) L".bin", _r_obj_getstring (binary_dir), _r_app_getnameshort (), _r_str_gethash2 (&pbi->binary_path->sr, TRUE));
+	string = _r_format_string (L"%s\\%s_%" PR_ULONG L".bin", _r_obj_getstring (binary_dir), _r_app_getnameshort (), _r_str_gethash2 (&pbi->binary_path->sr, TRUE));
 
 	_r_obj_movereference ((PVOID_PTR)&pbi->cache_path, string);
 
