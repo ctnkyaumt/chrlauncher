@@ -54,6 +54,8 @@ jobs:
             --xml-version=2 `
             --suppress=missingIncludeSystem `
             --suppress=unusedFunction `
+            -DPR_ULONG=\"lu\" `
+            -DPR_ULONG64=\"llu\" `
             "-i$(Join-Path $PWD 'src\lzma')" `
             $paths 2> $cppcheckXml
 

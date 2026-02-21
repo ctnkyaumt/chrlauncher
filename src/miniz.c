@@ -3408,6 +3408,7 @@ static void mz_zip_time_t_to_dos_time(MZ_TIME_T time, mz_uint16 *pDOS_time, mz_u
     // cppcheck-suppress uninitvar
     // cppcheck-suppress portability
     errno_t err = localtime_s(tm, &time);
+    (void)err; // Fix unused variable warning
     if (err)
     {
         *pDOS_date = 0;
