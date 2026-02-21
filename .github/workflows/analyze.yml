@@ -1,0 +1,121 @@
+name: analyze
+
+on:
+  workflow_dispatch:
+  pull_request:
+  push:
+
+permissions:
+  contents: read
+
+jobs:
+  analyze:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install analyzers
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          choco install -y cppcheck --no-progress *> $null
+          choco install -y gitleaks --no-progress *> $null
+
+      - name: Run cppcheck
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Continue'
+          $cppcheckXml = Join-Path $env:RUNNER_TEMP 'cppcheck.xml'
+          $paths = @(
+            (Join-Path $PWD 'src'),
+            (Join-Path $PWD 'temp_routine\src')
+          ) | Where-Object { Test-Path $_ }
+
+          if ($paths.Count -eq 0) {
+            throw 'No source paths found to analyze.'
+          }
+
+          & cppcheck `
+            --enable=warning,performance,portability,information `
+            --inconclusive `
+            --force `
+            --quiet `
+            --xml `
+            --xml-version=2 `
+            --suppress=missingIncludeSystem `
+            --suppress=unusedFunction `
+            -i (Join-Path $PWD 'src\lzma') `
+            @paths 2> $cppcheckXml
+
+      - name: Run gitleaks
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Continue'
+          $gitleaksJson = Join-Path $env:RUNNER_TEMP 'gitleaks.json'
+          & gitleaks detect `
+            --source . `
+            --no-git `
+            --redact `
+            --report-format json `
+            --report-path $gitleaksJson `
+            --exit-code 0 *> $null
+
+      - name: Summarize
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+
+          $cppcheckXml = Join-Path $env:RUNNER_TEMP 'cppcheck.xml'
+          $gitleaksJson = Join-Path $env:RUNNER_TEMP 'gitleaks.json'
+
+          $summary = New-Object System.Collections.Generic.List[string]
+          $summary.Add('## Analysis summary')
+          $summary.Add('')
+
+          if (Test-Path $cppcheckXml) {
+            [xml]$x = Get-Content -LiteralPath $cppcheckXml -Raw
+            $errors = @($x.results.errors.error)
+            $total = $errors.Count
+            $summary.Add('### cppcheck')
+            $summary.Add("- Findings: $total")
+            if ($total -gt 0) {
+              $bySeverity = $errors | Group-Object -Property severity | Sort-Object -Property Count -Descending
+              foreach ($g in $bySeverity) {
+                $summary.Add("- $($g.Name): $($g.Count)")
+              }
+            }
+            $summary.Add('')
+          }
+
+          if (Test-Path $gitleaksJson) {
+            $raw = Get-Content -LiteralPath $gitleaksJson -Raw
+            $findings = @()
+            if (-not [string]::IsNullOrWhiteSpace($raw)) {
+              $findings = $raw | ConvertFrom-Json
+            }
+            $count = @($findings).Count
+            $summary.Add('### gitleaks')
+            $summary.Add("- Findings: $count")
+            $summary.Add('')
+          }
+
+          $sourceFiles = Get-ChildItem -Path $PWD -Recurse -File -Include *.c,*.h,*.cpp,*.hpp,*.rc,*.inl -ErrorAction SilentlyContinue |
+            Where-Object { $_.FullName -notmatch '\\src\\lzma\\' }
+
+          $summary.Add('### Size signals')
+          $summary.Add("- Source files: $($sourceFiles.Count)")
+
+          $largest = $sourceFiles | Sort-Object -Property Length -Descending | Select-Object -First 10
+          if ($largest.Count -gt 0) {
+            $summary.Add('')
+            $summary.Add('Top 10 largest source files:')
+            foreach ($f in $largest) {
+              $kb = [math]::Round($f.Length / 1kb, 1)
+              $rel = Resolve-Path -LiteralPath $f.FullName -Relative
+              $summary.Add("- $rel ($kb KB)")
+            }
+          }
+
+          $summaryText = ($summary -join "`n")
+          Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY -Value $summaryText -Encoding utf8
+
