@@ -3,10 +3,41 @@ name: release
 on:
   workflow_dispatch:
     inputs:
+      version_source:
+        description: Version source
+        required: true
+        type: choice
+        options:
+          - auto_bump
+          - history_latest
+          - manual
+        default: history_latest
       bump:
         description: Version bump (major/minor/patch)
         required: true
+        type: choice
+        options:
+          - minor
+          - patch
+          - major
         default: minor
+      version:
+        description: Manual version (for example: 2.7)
+        required: false
+        default: ""
+      update_history:
+        description: Update bin/History.txt automatically
+        required: true
+        type: boolean
+        default: false
+      notes_source:
+        description: Release notes source
+        required: true
+        type: choice
+        options:
+          - history
+          - commits
+        default: history
 
 permissions:
   contents: write
@@ -14,9 +45,6 @@ permissions:
 jobs:
   release:
     runs-on: windows-2022
-    env:
-      GPG_PRIVATE_KEY_B64: ${{ secrets.GPG_PRIVATE_KEY_B64 }}
-      GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -40,7 +68,7 @@ jobs:
             git clone --depth 1 https://github.com/henrypp/routine.git ..\routine
           }
 
-      - name: Compute next version
+      - name: Resolve version
         id: version
         shell: pwsh
         run: |
@@ -48,107 +76,64 @@ jobs:
 
           git -c fetch.recurseSubmodules=false fetch --tags --force --no-recurse-submodules
 
-          $bump = '${{ inputs.bump }}'.ToLowerInvariant()
-          if ($bump -notin @('major', 'minor', 'patch')) { throw "Invalid bump: $bump" }
-
-          $lastTag = (git tag --list "v*" --sort=-v:refname | Select-Object -First 1)
-
-          $lastVersionText = $null
-          if ($lastTag) {
-            $lastVersionText = $lastTag -replace '^v', ''
-          } else {
-            $historyPath = Join-Path $PWD 'bin\History.txt'
-            if (Test-Path $historyPath) {
-              $first = (Get-Content -LiteralPath $historyPath | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -First 1)
-              if ($first -match '^v(?<ver>\d+\.\d+(?:\.\d+)?)\b') {
-                $lastVersionText = $Matches['ver']
-              }
+          $historyPath = Join-Path $PWD 'bin\History.txt'
+          $latestHistoryVersion = $null
+          if (Test-Path $historyPath) {
+            $first = (Get-Content -LiteralPath $historyPath | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -First 1)
+            if ($first -match '^v(?<ver>\d+\.\d+(?:\.\d+)?)\b') {
+              $latestHistoryVersion = $Matches['ver']
             }
           }
 
-          if (-not $lastVersionText) {
-            $lastVersionText = '0.0'
+          $source = '${{ inputs.version_source }}'.ToLowerInvariant()
+          $manual = '${{ inputs.version }}'.Trim()
+          $bump = '${{ inputs.bump }}'.ToLowerInvariant()
+
+          $lastTag = (git tag --list "v*" --sort=-v:refname | Select-Object -First 1)
+
+          if ($source -eq 'manual') {
+            if (-not $manual) { throw "Manual version is required when version_source=manual" }
+            $version = $manual -replace '^v', ''
+          } elseif ($source -eq 'history_latest') {
+            if (-not $latestHistoryVersion) { throw "Could not read latest version from bin/History.txt" }
+            $version = $latestHistoryVersion
+          } elseif ($source -eq 'auto_bump') {
+            if ($bump -notin @('major', 'minor', 'patch')) { throw "Invalid bump: $bump" }
+
+            $baseVersionText = $null
+            if ($lastTag) {
+              $baseVersionText = $lastTag -replace '^v', ''
+            } elseif ($latestHistoryVersion) {
+              $baseVersionText = $latestHistoryVersion
+            } else {
+              $baseVersionText = '0.0'
+            }
+
+            $parts = $baseVersionText.Split('.')
+            if ($parts.Count -lt 2 -or $parts.Count -gt 3) { throw "Unsupported version format: $baseVersionText" }
+
+            $major = [int]$parts[0]
+            $minor = [int]$parts[1]
+            $hasPatch = ($parts.Count -eq 3)
+            $patch = if ($hasPatch) { [int]$parts[2] } else { 0 }
+
+            switch ($bump) {
+              'major' { $major += 1; $minor = 0; $patch = 0 }
+              'minor' { $minor += 1; $patch = 0 }
+              'patch' { $patch += 1 }
+            }
+
+            $version = if ($hasPatch -or $bump -eq 'patch') { "$major.$minor.$patch" } else { "$major.$minor" }
+          } else {
+            throw "Invalid version_source: $source"
           }
 
-          $parts = $lastVersionText.Split('.')
-          if ($parts.Count -lt 2 -or $parts.Count -gt 3) { throw "Unsupported last version format: $lastVersionText" }
+          if ($version -notmatch '^\d+\.\d+(?:\.\d+)?$') { throw "Invalid version: $version" }
 
-          $major = [int]$parts[0]
-          $minor = [int]$parts[1]
-          $hasPatch = ($parts.Count -eq 3)
-          $patch = if ($hasPatch) { [int]$parts[2] } else { 0 }
-
-          switch ($bump) {
-            'major' { $major += 1; $minor = 0; $patch = 0 }
-            'minor' { $minor += 1; $patch = 0 }
-            'patch' { $patch += 1 }
-          }
-
-          $version = if ($hasPatch -or $bump -eq 'patch') { "$major.$minor.$patch" } else { "$major.$minor" }
           $tag = "v$version"
-
           "last_tag=$lastTag" >> $env:GITHUB_OUTPUT
           "tag=$tag" >> $env:GITHUB_OUTPUT
           "version=$version" >> $env:GITHUB_OUTPUT
-
-      - name: Update History.txt
-        id: history
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = 'Stop'
-          $version = '${{ steps.version.outputs.version }}'
-          $tag = '${{ steps.version.outputs.tag }}'
-          $lastTag = '${{ steps.version.outputs.last_tag }}'
-
-          $historyPath = Join-Path $PWD 'bin\History.txt'
-          if (!(Test-Path $historyPath)) { throw "Missing $historyPath" }
-
-          $date = Get-Date -Format 'd MMMM yyyy'
-
-          $notes = @()
-          if ($lastTag) {
-            $notes = git -c submodule.recurse=false log "$lastTag..HEAD" --no-merges --pretty=format:"- %s"
-          } else {
-            $notes = git -c submodule.recurse=false log -n 30 --no-merges --pretty=format:"- %s"
-          }
-
-          $notes = $notes |
-            ForEach-Object { $_.Trim() } |
-            Where-Object { $_ -and $_ -notmatch '^- Merge\b' } |
-            Select-Object -Unique |
-            Select-Object -First 12
-
-          if ($notes.Count -eq 0) {
-            $notes = @('- maintenance release')
-          }
-
-          $header = "v$version ($date)"
-          $section = @($header) + $notes + @('')
-
-          $existing = Get-Content -LiteralPath $historyPath
-          $updated = $section + $existing
-          Set-Content -LiteralPath $historyPath -Value $updated -Encoding utf8
-
-          $out = Join-Path $PWD 'release-notes.md'
-          Set-Content -LiteralPath $out -Value $notes -Encoding utf8
-
-          "notes_path=$out" >> $env:GITHUB_OUTPUT
-
-      - name: Commit History.txt
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = 'Stop'
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add bin/History.txt
-          git commit -m "release: ${{ steps.version.outputs.tag }}" || exit 0
-          git push
-
-          $tag = '${{ steps.version.outputs.tag }}'
-          $exists = (git tag --list $tag | Select-Object -First 1)
-          if ($exists) { throw "Tag already exists: $tag" }
-          git tag $tag
-          git push origin $tag
 
       - name: Build Release x64
         run: msbuild .\chrlauncher.vcxproj /m /p:Configuration=Release /p:Platform=x64 /p:PlatformToolset=v143
@@ -190,54 +175,105 @@ jobs:
           Compress-Archive -Force -Path .\dist\chrlauncher -DestinationPath (Join-Path $PWD $zipName)
           "zip=$zipName" >> $env:GITHUB_OUTPUT
 
-      - name: Check GnuPG
-        id: gpgcheck
-        if: ${{ env.GPG_PRIVATE_KEY_B64 != '' }}
+      - name: Generate release notes
+        id: notes
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          $needInstall = $true
 
-          $gpg = Get-Command gpg -ErrorAction SilentlyContinue
-          if ($gpg) {
-            try {
-              & gpg --version | Out-Null
-              $needInstall = $false
-            } catch {
-              $needInstall = $true
+          $version = '${{ steps.version.outputs.version }}'
+          $tag = '${{ steps.version.outputs.tag }}'
+          $lastTag = '${{ steps.version.outputs.last_tag }}'
+          $notesSource = '${{ inputs.notes_source }}'.ToLowerInvariant()
+          $versionSource = '${{ inputs.version_source }}'.ToLowerInvariant()
+          $updateHistory = '${{ inputs.update_history }}'.ToLowerInvariant()
+
+          $historyPath = Join-Path $PWD 'bin\History.txt'
+          $out = Join-Path $PWD 'release-notes.md'
+
+          if ($notesSource -eq 'history') {
+            if (Test-Path $historyPath) {
+              $lines = Get-Content -LiteralPath $historyPath
+              $start = $null
+              for ($i = 0; $i -lt $lines.Count; $i++) {
+                if ($lines[$i] -match ("^v" + [regex]::Escape($version) + "\b")) { $start = $i; break }
+              }
+
+              if ($null -ne $start) {
+                $body = @()
+                for ($i = $start + 1; $i -lt $lines.Count; $i++) {
+                  if ([string]::IsNullOrWhiteSpace($lines[$i])) { break }
+                  $body += $lines[$i]
+                }
+
+                if ($body.Count -gt 0) {
+                  Set-Content -LiteralPath $out -Value $body -Encoding utf8
+                  "path=$out" >> $env:GITHUB_OUTPUT
+                  exit 0
+                }
+              }
+            }
+
+            if ($versionSource -eq 'auto_bump' -or $updateHistory -eq 'true') {
+              $notesSource = 'commits'
+            } else {
+              throw "Could not find v$version section in History.txt"
             }
           }
 
-          "need_install=$needInstall" >> $env:GITHUB_OUTPUT
+          if ($notesSource -eq 'commits') {
+            $notes = @()
+            if ($lastTag) {
+              $notes = git -c submodule.recurse=false log "$lastTag..HEAD" --no-merges --pretty=format:"- %s"
+            } else {
+              $notes = git -c submodule.recurse=false log -n 30 --no-merges --pretty=format:"- %s"
+            }
 
-      - name: Install GnuPG
-        if: ${{ env.GPG_PRIVATE_KEY_B64 != '' && steps.gpgcheck.outputs.need_install == 'True' }}
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = 'Stop'
-          choco install gnupg -y --no-progress
+            $notes = $notes |
+              ForEach-Object { $_.Trim() } |
+              Where-Object { $_ -and $_ -notmatch '^- Merge\b' } |
+              Select-Object -Unique |
+              Select-Object -First 12
 
-      - name: Import signing key
-        if: ${{ env.GPG_PRIVATE_KEY_B64 != '' }}
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = 'Stop'
-          $keyBytes = [Convert]::FromBase64String($env:GPG_PRIVATE_KEY_B64)
-          $keyText = [Text.Encoding]::UTF8.GetString($keyBytes)
-          $keyText | gpg --batch --import
-
-      - name: Sign release zip
-        if: ${{ env.GPG_PRIVATE_KEY_B64 != '' }}
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = 'Stop'
-          $zipName = '${{ steps.package.outputs.zip }}'
-          $sigName = "$zipName.sig"
-
-          if ($env:GPG_PASSPHRASE) {
-            gpg --batch --pinentry-mode loopback --passphrase $env:GPG_PASSPHRASE --detach-sign --output $sigName $zipName
+            if ($notes.Count -eq 0) { $notes = @('- maintenance release') }
+            Set-Content -LiteralPath $out -Value $notes -Encoding utf8
           } else {
-            gpg --batch --detach-sign --output $sigName $zipName
+            throw "Invalid notes_source: $notesSource"
+          }
+
+          "path=$out" >> $env:GITHUB_OUTPUT
+
+      - name: Update History.txt
+        if: ${{ inputs.update_history }}
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+
+          $version = '${{ steps.version.outputs.version }}'
+          $notesPath = '${{ steps.notes.outputs.path }}'
+          $historyPath = Join-Path $PWD 'bin\History.txt'
+
+          if (!(Test-Path $historyPath)) { throw "Missing $historyPath" }
+          if (!(Test-Path $notesPath)) { throw "Missing $notesPath" }
+
+          $existing = Get-Content -LiteralPath $historyPath
+          $already = $false
+          foreach ($l in $existing) {
+            if ($l -match ("^v" + [regex]::Escape($version) + "\b")) { $already = $true; break }
+          }
+
+          if (-not $already) {
+            $date = Get-Date -Format 'd MMMM yyyy'
+            $header = "v$version ($date)"
+            $notes = Get-Content -LiteralPath $notesPath
+            $section = @($header) + $notes + @('')
+            Set-Content -LiteralPath $historyPath -Value ($section + $existing) -Encoding utf8
+
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add bin/History.txt
+            git commit -m "release: v$version" || exit 0
+            git push
           }
 
       - name: Create GitHub release
@@ -246,14 +282,6 @@ jobs:
           tag_name: ${{ steps.version.outputs.tag }}
           target_commitish: ${{ github.ref_name }}
           name: ${{ steps.version.outputs.version }}
-          body_path: ${{ steps.history.outputs.notes_path }}
+          body_path: ${{ steps.notes.outputs.path }}
           files: |
             ${{ steps.package.outputs.zip }}
-
-      - name: Upload signature
-        if: ${{ env.GPG_PRIVATE_KEY_B64 != '' }}
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ steps.version.outputs.tag }}
-          files: |
-            ${{ steps.package.outputs.zip }}.sig
