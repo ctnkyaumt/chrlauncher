@@ -12,7 +12,7 @@ on:
         required: true
         default: minor
       version:
-        description: Manual version (for example: 2.7)
+        description: "Manual version (for example: 2.7)"
         required: false
         default: ""
       update_history:
