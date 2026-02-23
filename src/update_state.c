@@ -25,6 +25,7 @@ BOOLEAN _app_isupdaterequired (
 )
 {
 	LONG64 timestamp;
+	PR_STRING lastcheck_key = NULL;
 
 	if (!_r_fs_exists (&pbi->binary_path->sr))
 		return TRUE;
@@ -35,7 +36,13 @@ BOOLEAN _app_isupdaterequired (
 	if (pbi->check_period)
 	{
 		timestamp = _r_unixtime_now ();
-		timestamp -= _r_config_getlong64 (L"ChromiumLastCheck", 0);
+		if (pbi->instance_id > 1)
+			lastcheck_key = _r_format_string (L"ChromiumLastCheck%" TEXT (PR_LONG), pbi->instance_id);
+
+		timestamp -= _r_config_getlong64 (lastcheck_key ? lastcheck_key->buffer : L"ChromiumLastCheck", 0);
+
+		if (lastcheck_key)
+			_r_obj_dereference (lastcheck_key);
 
 		if (timestamp >= _r_calc_days2seconds (pbi->check_period))
 			return TRUE;

@@ -225,9 +225,6 @@ VOID _app_init_browser_info (
 	_r_obj_clearreference ((PVOID_PTR)&pbi->args_str);
 	_r_obj_clearreference ((PVOID_PTR)&pbi->profile_dir);
 
-	pbi->architecture = 0;
-	pbi->instance_id = 0;
-
 	_app_parse_args (pbi);
 
 	binary_dir = _r_config_getstringexpand (L"ChromiumDirectory", L".\\bin");
@@ -424,7 +421,23 @@ VOID _app_init_browser_info (
 
 	_r_obj_dereference (binary_dir);
 
-	browser_type = _r_config_getstring (L"ChromiumType", CHROMIUM_TYPE);
+	if (pbi->instance_id >= 2 && pbi->instance_id <= 4)
+	{
+		PR_STRING type_key;
+
+		type_key = _r_format_string (L"ChromiumType%" TEXT (PR_LONG), pbi->instance_id);
+
+		if (type_key)
+		{
+			browser_type = _r_config_getstring (type_key->buffer, NULL);
+
+			_r_obj_dereference (type_key);
+		}
+	}
+
+	if (!browser_type)
+		browser_type = _r_config_getstring (L"ChromiumType", CHROMIUM_TYPE);
+
 	browser_arguments = _r_config_getstringexpand (L"ChromiumCommandLine", CHROMIUM_COMMAND_LINE);
 
 	if (browser_type)

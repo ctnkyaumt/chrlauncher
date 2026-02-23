@@ -83,7 +83,7 @@ VOID _app_parse_args (
 					{
 						LONG arch = (LONG)wcstol (value_ptr, NULL, 10);
 
-						if (arch == 32 || arch == 64)
+						if ((pbi->architecture != 32 && pbi->architecture != 64) && (arch == 32 || arch == 64))
 							pbi->architecture = arch;
 					}
 				}
@@ -112,7 +112,7 @@ VOID _app_parse_args (
 					{
 						LONG instance_id = (LONG)wcstol (value_ptr, NULL, 10);
 
-						if (instance_id >= 1)
+						if (pbi->instance_id < 1 && instance_id >= 1)
 							pbi->instance_id = instance_id;
 					}
 				}
