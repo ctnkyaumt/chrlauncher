@@ -6,6 +6,27 @@
 #include "main.h"
 #include "rapp.h"
 
+VOID _app_set_lastcheck (
+	_In_ PBROWSER_INFORMATION pbi
+)
+{
+	PR_STRING lastcheck_key = NULL;
+	LONG64 timestamp;
+
+	if (!pbi)
+		return;
+
+	timestamp = _r_unixtime_now ();
+
+	if (pbi->instance_id > 1)
+		lastcheck_key = _r_format_string (L"ChromiumLastCheck%" TEXT (PR_LONG), pbi->instance_id);
+
+	_r_config_setlong64 (lastcheck_key ? lastcheck_key->buffer : L"ChromiumLastCheck", timestamp);
+
+	if (lastcheck_key)
+		_r_obj_dereference (lastcheck_key);
+}
+
 BOOLEAN _app_ishaveupdate (
 	_In_ PBROWSER_INFORMATION pbi
 )
