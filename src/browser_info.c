@@ -214,7 +214,7 @@ static PR_STRING _app_apply_profile_dir (
 			replace_start--;
 
 		replace_end = existing_ptr;
-		args_end = PTR_ADD_OFFSET (args->buffer, args->length);
+		args_end = args->buffer + (args->length / sizeof (WCHAR));
 
 		while (replace_end < args_end && *replace_end)
 		{
@@ -233,7 +233,7 @@ static PR_STRING _app_apply_profile_dir (
 			suffix_ptr++;
 
 		prefix_length = (SIZE_T)(replace_start - args->buffer) * sizeof (WCHAR);
-		suffix_length = (SIZE_T)(args_end - suffix_ptr);
+		suffix_length = (SIZE_T)(args_end - suffix_ptr) * sizeof (WCHAR);
 
 		result_length = prefix_length +
 			(prefix_length ? sizeof (WCHAR) : 0) +
