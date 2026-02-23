@@ -36,6 +36,7 @@ typedef struct _BROWSER_INFORMATION
 	PR_STRING cache_path;
 	PR_STRING binary_dir;
 	PR_STRING binary_path;
+	PR_STRING profile_dir;
 	PR_STRING download_url;
 	PR_STRING current_version;
 	PR_STRING new_version;
@@ -45,6 +46,7 @@ typedef struct _BROWSER_INFORMATION
 
 	LONG check_period;
 	LONG architecture;
+	LONG instance_id;
 
 	BOOLEAN is_autodownload;
 	BOOLEAN is_bringtofront;
@@ -53,6 +55,7 @@ typedef struct _BROWSER_INFORMATION
 	BOOLEAN is_hasurls;
 	BOOLEAN is_onlyupdate;
 	BOOLEAN is_opennewwindow;
+	BOOLEAN is_newinstance;
 	BOOLEAN is_taskupdate;
 	BOOLEAN is_waitdownloadend;
 } BROWSER_INFORMATION, *PBROWSER_INFORMATION;
