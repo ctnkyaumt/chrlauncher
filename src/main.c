@@ -21,6 +21,8 @@
 
 #include <shlobj.h>
 #include <shobjidl.h>
+#include <propsys.h>
+#include <propkey.h>
 
 BROWSER_INFORMATION browser_info = {0};
 
@@ -40,12 +42,18 @@ static VOID _app_create_profileshortcut (
 	PWSTR desktop_path = NULL;
 	PR_STRING link_title = NULL;
 	PR_STRING link_path = NULL;
+	PR_STRING app_id = NULL;
 	HRESULT hr_init;
 	HRESULT hr;
 	IShellLinkW *psl = NULL;
 	IPersistFile *ppf = NULL;
+	IPropertyStore *pps = NULL;
+	PROPVARIANT pv = {0};
 
 	if (!pbi || _r_obj_isstringempty (pbi->binary_path) || _r_obj_isstringempty (pbi->profile_dir))
+		return;
+
+	if (!_r_fs_exists (&pbi->binary_path->sr))
 		return;
 
 	if (!_r_fs_exists (&pbi->profile_dir->sr))
@@ -91,13 +99,6 @@ static VOID _app_create_profileshortcut (
 		return;
 	}
 
-	if (_r_fs_exists (&link_path->sr))
-	{
-		_r_obj_dereference (link_title);
-		_r_obj_dereference (link_path);
-		return;
-	}
-
 	hr_init = CoInitializeEx (NULL, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
 
 	hr = CoCreateInstance (&CLSID_ShellLink, NULL, CLSCTX_INPROC_SERVER, &IID_IShellLinkW, (PVOID_PTR)&psl);
@@ -114,6 +115,37 @@ static VOID _app_create_profileshortcut (
 
 		psl->lpVtbl->SetIconLocation (psl, pbi->binary_path->buffer, 0);
 		psl->lpVtbl->SetDescription (psl, link_title->buffer);
+
+		app_id = _r_format_string (
+			L"%s.%s.%" TEXT (PR_LONG) L".%" TEXT (PR_LONG),
+			_r_app_getnameshort (),
+			_r_obj_getstring (pbi->browser_type),
+			pbi->architecture,
+			(pbi->instance_id >= 1) ? pbi->instance_id : 1
+		);
+
+		if (app_id)
+		{
+			hr = psl->lpVtbl->QueryInterface (psl, &IID_IPropertyStore, (PVOID_PTR)&pps);
+
+			if (SUCCEEDED (hr) && pps)
+			{
+				pv.vt = VT_LPWSTR;
+				pv.pwszVal = CoTaskMemAlloc (app_id->length + sizeof (WCHAR));
+
+				if (pv.pwszVal)
+				{
+					RtlCopyMemory (pv.pwszVal, app_id->buffer, app_id->length + sizeof (WCHAR));
+					pps->lpVtbl->SetValue (pps, &PKEY_AppUserModel_ID, &pv);
+					pps->lpVtbl->Commit (pps);
+					PropVariantClear (&pv);
+				}
+
+				pps->lpVtbl->Release (pps);
+			}
+
+			_r_obj_dereference (app_id);
+		}
 
 		hr = psl->lpVtbl->QueryInterface (psl, &IID_IPersistFile, (PVOID_PTR)&ppf);
 
@@ -308,7 +340,7 @@ BOOLEAN _app_checkupdate (
 			_r_obj_dereference (string);
 		}
 
-		_app_update_browser_info (hwnd, &browser_info);
+		_app_update_browser_info (hwnd, pbi);
 
 		if (pbi->new_version && pbi->current_version)
 			is_newversion = (_r_str_versioncompare (&pbi->current_version->sr, &pbi->new_version->sr) == -1);
@@ -716,8 +748,6 @@ BOOLEAN _app_unpack_zip (
 
 	if (!mz_zip_reader_init_file_v2 (&zip_archive, pbi->cache_path->buffer, 0, 0, 0))
 	{
-		_r_show_errormessage (hwnd, NULL, zip_archive.m_last_error, mz_zip_get_error_string (zip_archive.m_last_error), ET_NONE);
-
 		return FALSE;
 	}
 
