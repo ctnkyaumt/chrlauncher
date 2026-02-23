@@ -215,7 +215,6 @@ VOID _app_init_browser_info (
 	PR_STRING binary_name;
 	PR_STRING string;
 	PR_STRING profile_dir;
-	ULONG binary_type;
 	USHORT architecture;
 	NTSTATUS status;
 
