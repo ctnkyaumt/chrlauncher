@@ -29,6 +29,10 @@ R_QUEUED_LOCK lock_thread = PR_QUEUED_LOCK_INIT;
 
 R_WORKQUEUE workqueue;
 
+static VOID _app_set_lastcheck (
+	_In_ PBROWSER_INFORMATION pbi
+);
+
 static VOID _app_create_profileshortcut (
 	_In_ PBROWSER_INFORMATION pbi
 )
