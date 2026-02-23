@@ -37,17 +37,365 @@ BOOLEAN _app_isupdaterequired (
 
 VOID _app_set_lastcheck (
 	_In_ PBROWSER_INFORMATION pbi
+);
+
+static PR_STRING _app_json_read_string (
+	_In_ LPCWSTR value_ptr
 )
 {
-	PR_STRING lastcheck_key = NULL;
+	BOOLEAN is_escaped = FALSE;
+	LPCWSTR start;
+	LPCWSTR end;
 
-	if (pbi && pbi->instance_id > 1)
-		lastcheck_key = _r_format_string (L"ChromiumLastCheck%" TEXT (PR_LONG), pbi->instance_id);
+	if (!value_ptr || value_ptr[0] != L'"')
+		return NULL;
 
-	_r_config_setlong64 (lastcheck_key ? lastcheck_key->buffer : L"ChromiumLastCheck", _r_unixtime_now ());
+	start = value_ptr + 1;
+	end = start;
 
-	if (lastcheck_key)
-		_r_obj_dereference (lastcheck_key);
+	while (end[0])
+	{
+		if (is_escaped)
+		{
+			is_escaped = FALSE;
+			end += 1;
+			continue;
+		}
+
+		if (end[0] == L'\\')
+		{
+			is_escaped = TRUE;
+			end += 1;
+			continue;
+		}
+
+		if (end[0] == L'"')
+			break;
+
+		end += 1;
+	}
+
+	if (end[0] != L'"')
+		return NULL;
+
+	return _r_obj_createstring_ex (start, (ULONG_PTR)(end - start) * sizeof (WCHAR));
+}
+
+static LPCWSTR _app_json_skip_whitespace (
+	_In_ LPCWSTR ptr
+)
+{
+	if (!ptr)
+		return NULL;
+
+	while (ptr[0] == L' ' || ptr[0] == L'\t' || ptr[0] == L'\r' || ptr[0] == L'\n')
+		ptr += 1;
+
+	return ptr;
+}
+
+static PR_STRING _app_json_find_string_value (
+	_In_ LPCWSTR json,
+	_In_ LPCWSTR key
+)
+{
+	WCHAR pattern[128] = {0};
+	LPCWSTR key_ptr;
+	LPCWSTR colon_ptr;
+	LPCWSTR value_ptr;
+
+	if (!json || !key || !key[0])
+		return NULL;
+
+	swprintf_s (pattern, RTL_NUMBER_OF (pattern), L"\"%s\"", key);
+
+	key_ptr = wcsstr (json, pattern);
+
+	if (!key_ptr)
+		return NULL;
+
+	colon_ptr = wcschr (key_ptr + 1, L':');
+
+	if (!colon_ptr)
+		return NULL;
+
+	value_ptr = _app_json_skip_whitespace (colon_ptr + 1);
+
+	if (!value_ptr || value_ptr[0] != L'"')
+		return NULL;
+
+	return _app_json_read_string (value_ptr);
+}
+
+static BOOLEAN _app_wcs_endswith (
+	_In_ LPCWSTR string,
+	_In_ LPCWSTR suffix
+)
+{
+	SIZE_T string_len;
+	SIZE_T suffix_len;
+
+	if (!string || !suffix)
+		return FALSE;
+
+	string_len = wcslen (string);
+	suffix_len = wcslen (suffix);
+
+	if (suffix_len == 0 || string_len < suffix_len)
+		return FALSE;
+
+	return _wcsicmp (string + (string_len - suffix_len), suffix) == 0;
+}
+
+static BOOLEAN _app_wcs_contains_i (
+	_In_ LPCWSTR haystack,
+	_In_ LPCWSTR needle
+)
+{
+	SIZE_T hay_len;
+	SIZE_T needle_len;
+
+	if (!haystack || !needle || !needle[0])
+		return FALSE;
+
+	hay_len = wcslen (haystack);
+	needle_len = wcslen (needle);
+
+	if (hay_len < needle_len)
+		return FALSE;
+
+	for (SIZE_T i = 0; i + needle_len <= hay_len; i++)
+	{
+		if (_wcsnicmp (haystack + i, needle, needle_len) == 0)
+			return TRUE;
+	}
+
+	return FALSE;
+}
+
+static BOOLEAN _app_checkupdate_github_latest_release (
+	_In_ HWND hwnd,
+	_In_ PBROWSER_INFORMATION pbi,
+	_In_ LPCWSTR release_api_url,
+	_In_ BOOLEAN is_exists,
+	_Out_ PBOOLEAN is_error_ptr
+)
+{
+	R_DOWNLOAD_INFO download_info;
+	PR_STRING proxy_string = NULL;
+	HINTERNET hsession = NULL;
+	PR_STRING json = NULL;
+	PR_STRING tag_name = NULL;
+	PR_STRING selected_url = NULL;
+	LPCWSTR assets_ptr;
+	LPCWSTR scan_ptr;
+	BOOLEAN is_success = FALSE;
+	NTSTATUS status;
+
+	*is_error_ptr = FALSE;
+
+	proxy_string = _r_app_getproxyconfiguration ();
+	hsession = _r_inet_createsession (_r_app_getuseragent (), proxy_string);
+
+	if (!hsession)
+	{
+		*is_error_ptr = TRUE;
+		goto CleanupExit;
+	}
+
+	_r_inet_initializedownload (&download_info, NULL, NULL, NULL);
+
+	{
+		R_STRINGREF api_url_sr;
+		_r_obj_initializestringref_ex (&api_url_sr, release_api_url, wcslen (release_api_url) * sizeof (WCHAR));
+		status = _r_inet_begindownload (hsession, &api_url_sr, &download_info);
+	}
+
+	if (status != STATUS_SUCCESS)
+	{
+		_r_show_errormessage (hwnd, NULL, status, L"Could not download update.", ET_WINHTTP);
+		*is_error_ptr = TRUE;
+		_r_inet_destroydownload (&download_info);
+		goto CleanupExit;
+	}
+
+	if (_r_obj_isstringempty (download_info.string))
+	{
+		_r_show_message (hwnd, MB_OK | MB_ICONSTOP, NULL, L"Configuration was not found.");
+		*is_error_ptr = TRUE;
+		_r_inet_destroydownload (&download_info);
+		goto CleanupExit;
+	}
+
+	_r_obj_movereference ((PVOID_PTR)&json, download_info.string);
+	download_info.string = NULL;
+	_r_inet_destroydownload (&download_info);
+
+	tag_name = _app_json_find_string_value (json->buffer, L"tag_name");
+
+	if (!tag_name)
+	{
+		_r_show_message (hwnd, MB_OK | MB_ICONSTOP, NULL, L"Configuration was not found.");
+		*is_error_ptr = TRUE;
+		goto CleanupExit;
+	}
+
+	if (tag_name->length >= sizeof (WCHAR) && (tag_name->buffer[0] == L'v' || tag_name->buffer[0] == L'V'))
+	{
+		PR_STRING trimmed = _r_obj_createstring_ex (tag_name->buffer + 1, tag_name->length - sizeof (WCHAR));
+
+		if (trimmed)
+		{
+			_r_obj_dereference (tag_name);
+			tag_name = trimmed;
+		}
+	}
+
+	assets_ptr = wcsstr (json->buffer, L"\"assets\"");
+
+	if (!assets_ptr)
+	{
+		_r_show_message (hwnd, MB_OK | MB_ICONSTOP, NULL, L"Configuration was not found.");
+		*is_error_ptr = TRUE;
+		goto CleanupExit;
+	}
+
+	scan_ptr = assets_ptr;
+
+	{
+		LONG best_score = -1;
+		LPCWSTR p = scan_ptr;
+
+		while ((p = wcsstr (p, L"\"name\"")) != NULL)
+		{
+			PR_STRING asset_name = NULL;
+			PR_STRING asset_url = NULL;
+			LPCWSTR next_name;
+			LPCWSTR url_key;
+			LPCWSTR url_search_end;
+			LONG score = 0;
+
+			asset_name = _app_json_find_string_value (p, L"name");
+
+			if (!asset_name)
+			{
+				p += 6;
+				continue;
+			}
+
+			next_name = wcsstr (p + 6, L"\"name\"");
+			url_search_end = next_name ? next_name : (json->buffer + (json->length / sizeof (WCHAR)));
+
+			url_key = wcsstr (p, L"\"browser_download_url\"");
+
+			if (!url_key || url_key >= url_search_end)
+			{
+				_r_obj_dereference (asset_name);
+				p += 6;
+				continue;
+			}
+
+			asset_url = _app_json_find_string_value (url_key, L"browser_download_url");
+
+			if (!asset_url)
+			{
+				_r_obj_dereference (asset_name);
+				p += 6;
+				continue;
+			}
+
+			if (_app_wcs_endswith (asset_name->buffer, L".zip"))
+				score += 10;
+			else if (_app_wcs_endswith (asset_name->buffer, L".7z"))
+				score += 9;
+			else
+				score = -1;
+
+			if (score >= 0)
+			{
+				if (pbi->architecture == 64)
+				{
+					if (_app_wcs_contains_i (asset_name->buffer, L"win64") || _app_wcs_contains_i (asset_name->buffer, L"x64"))
+						score += 6;
+					else if (_app_wcs_contains_i (asset_name->buffer, L"64"))
+						score += 5;
+				}
+				else if (pbi->architecture == 32)
+				{
+					if (_app_wcs_contains_i (asset_name->buffer, L"win32") || _app_wcs_contains_i (asset_name->buffer, L"x86"))
+						score += 6;
+					else if (_app_wcs_contains_i (asset_name->buffer, L"32"))
+						score += 5;
+				}
+
+				if (_app_wcs_contains_i (asset_name->buffer, L"portable"))
+					score += 2;
+			}
+
+			if (score > best_score)
+			{
+				best_score = score;
+
+				if (selected_url)
+					_r_obj_dereference (selected_url);
+
+				selected_url = asset_url;
+				asset_url = NULL;
+			}
+
+			_r_obj_dereference (asset_name);
+
+			if (asset_url)
+				_r_obj_dereference (asset_url);
+
+			p += 6;
+		}
+	}
+
+	if (!selected_url)
+	{
+		_r_show_message (hwnd, MB_OK | MB_ICONSTOP, NULL, L"Configuration was not found.");
+		*is_error_ptr = TRUE;
+		goto CleanupExit;
+	}
+
+	_r_obj_movereference ((PVOID_PTR)&pbi->download_url, selected_url);
+	selected_url = NULL;
+
+	_r_obj_movereference ((PVOID_PTR)&pbi->new_version, tag_name);
+	tag_name = NULL;
+
+	_app_update_browser_info (hwnd, pbi);
+
+	if (pbi->new_version && pbi->current_version)
+		is_success = (_r_str_versioncompare (&pbi->current_version->sr, &pbi->new_version->sr) == -1);
+	else
+		is_success = TRUE;
+
+	if (is_exists && !is_success)
+	{
+		SAFE_DELETE_REFERENCE (pbi->download_url);
+		_app_set_lastcheck (pbi);
+	}
+
+CleanupExit:
+
+	if (selected_url)
+		_r_obj_dereference (selected_url);
+
+	if (tag_name)
+		_r_obj_dereference (tag_name);
+
+	if (json)
+		_r_obj_dereference (json);
+
+	if (hsession)
+		_r_inet_close (hsession);
+
+	if (proxy_string)
+		_r_obj_dereference (proxy_string);
+
+	return is_success;
 }
 
 BOOLEAN _app_checkupdate (
@@ -86,7 +434,15 @@ BOOLEAN _app_checkupdate (
 
 	if (!is_exists || is_updaterequired)
 	{
+		R_STRINGREF r3dfox_type = PR_STRINGREF_INIT (L"r3dfox");
+		R_STRINGREF iceweasel_type = PR_STRINGREF_INIT (L"iceweasel");
 		R_STRINGREF cromite_type = PR_STRINGREF_INIT (L"cromite");
+
+		if (pbi->browser_type && _r_str_isequal (&pbi->browser_type->sr, &r3dfox_type, TRUE))
+			return _app_checkupdate_github_latest_release (hwnd, pbi, L"https://api.github.com/repos/Eclipse-Community/r3dfox/releases/latest", is_exists, is_error_ptr);
+
+		if (pbi->browser_type && _r_str_isequal (&pbi->browser_type->sr, &iceweasel_type, TRUE))
+			return _app_checkupdate_github_latest_release (hwnd, pbi, L"https://api.github.com/repos/adonais/iceweasel/releases/latest", is_exists, is_error_ptr);
 
 		update_url = _r_config_getstring (L"ChromiumUpdateUrl", NULL);
 

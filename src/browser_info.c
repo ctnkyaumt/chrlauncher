@@ -315,16 +315,148 @@ static PR_STRING _app_apply_profile_dir (
 	return result ? result : _r_obj_createstring (args->buffer);
 }
 
+static PR_STRING _app_apply_profile_dir_firefox (
+	_In_opt_ PR_STRING args,
+	_In_ PR_STRING profile_dir
+)
+{
+	static const WCHAR PROFILE[] = L"-profile";
+	static const WCHAR NO_REMOTE[] = L"-no-remote";
+
+	PR_STRING profile_arg;
+	PR_STRING result = NULL;
+	LPCWSTR existing_ptr;
+	LPCWSTR replace_start;
+	LPCWSTR replace_end;
+	LPCWSTR args_end;
+	LPCWSTR suffix_ptr;
+	SIZE_T prefix_length;
+	SIZE_T suffix_length;
+	SIZE_T result_length;
+	BOOLEAN is_quote = FALSE;
+
+	if (!profile_dir || _r_obj_isstringempty (profile_dir))
+		return args ? _r_obj_createstring (args->buffer) : NULL;
+
+	profile_arg = _r_format_string (L"-profile \"%s\"", profile_dir->buffer);
+
+	if (!profile_arg)
+		return args ? _r_obj_createstring (args->buffer) : NULL;
+
+	if (!args)
+	{
+		result = _r_obj_concatstrings (3, profile_arg->buffer, L" ", NO_REMOTE);
+		_r_obj_dereference (profile_arg);
+		return result ? result : _r_obj_createstring (profile_arg->buffer);
+	}
+
+	existing_ptr = StrStrIW (args->buffer, PROFILE);
+
+	if (existing_ptr)
+	{
+		replace_start = existing_ptr;
+
+		if (replace_start > args->buffer && *(replace_start - 1) == L' ')
+			replace_start--;
+
+		replace_end = existing_ptr + RTL_NUMBER_OF (PROFILE) - 1;
+		args_end = args->buffer + (args->length / sizeof (WCHAR));
+
+		while (replace_end < args_end && (*replace_end == L' ' || *replace_end == L'\t'))
+			replace_end++;
+
+		while (replace_end < args_end && *replace_end)
+		{
+			if (*replace_end == L'"')
+				is_quote = !is_quote;
+
+			if (!is_quote && (*replace_end == L' ' || *replace_end == L'\t'))
+				break;
+
+			replace_end++;
+		}
+
+		suffix_ptr = replace_end;
+
+		while (*suffix_ptr == L' ' || *suffix_ptr == L'\t')
+			suffix_ptr++;
+
+		prefix_length = (SIZE_T)(replace_start - args->buffer) * sizeof (WCHAR);
+		suffix_length = (SIZE_T)(args_end - suffix_ptr) * sizeof (WCHAR);
+
+		result_length = prefix_length +
+			(prefix_length ? sizeof (WCHAR) : 0) +
+			(SIZE_T)profile_arg->length +
+			(suffix_length ? sizeof (WCHAR) : 0) +
+			suffix_length;
+
+		result = _r_obj_createstring_ex (NULL, result_length);
+
+		if (result)
+		{
+			SIZE_T offset = 0;
+
+			if (prefix_length)
+			{
+				RtlCopyMemory (PTR_ADD_OFFSET (result->buffer, offset), args->buffer, prefix_length);
+				offset += prefix_length;
+
+				RtlCopyMemory (PTR_ADD_OFFSET (result->buffer, offset), L" ", sizeof (WCHAR));
+				offset += sizeof (WCHAR);
+			}
+
+			RtlCopyMemory (PTR_ADD_OFFSET (result->buffer, offset), profile_arg->buffer, profile_arg->length);
+			offset += profile_arg->length;
+
+			if (suffix_length)
+			{
+				RtlCopyMemory (PTR_ADD_OFFSET (result->buffer, offset), L" ", sizeof (WCHAR));
+				offset += sizeof (WCHAR);
+
+				RtlCopyMemory (PTR_ADD_OFFSET (result->buffer, offset), suffix_ptr, suffix_length);
+			}
+
+			_r_str_trimtonullterminator (&result->sr);
+		}
+	}
+	else
+	{
+		result_length = (SIZE_T)args->length + (SIZE_T)profile_arg->length + (2 * sizeof (WCHAR));
+
+		result = _r_obj_createstring_ex (NULL, result_length);
+
+		if (result)
+		{
+			RtlCopyMemory (result->buffer, args->buffer, args->length);
+			RtlCopyMemory (PTR_ADD_OFFSET (result->buffer, args->length), L" ", sizeof (WCHAR));
+			RtlCopyMemory (PTR_ADD_OFFSET (result->buffer, args->length + sizeof (WCHAR)), profile_arg->buffer, profile_arg->length);
+			_r_str_trimtonullterminator (&result->sr);
+		}
+	}
+
+	_r_obj_dereference (profile_arg);
+
+	if (result && !StrStrIW (result->buffer, NO_REMOTE))
+	{
+		PR_STRING with_noremote = _r_obj_concatstrings (3, result->buffer, L" ", NO_REMOTE);
+
+		if (with_noremote)
+		{
+			_r_obj_dereference (result);
+			result = with_noremote;
+		}
+	}
+
+	return result ? result : _r_obj_createstring (args->buffer);
+}
+
 VOID _app_init_browser_info (
 	_Inout_ PBROWSER_INFORMATION pbi
 )
 {
 	R_STRINGREF bin_names[] = {
-		PR_STRINGREF_INIT (L"brave.exe"),
-		PR_STRINGREF_INIT (L"firefox.exe"),
-		PR_STRINGREF_INIT (L"basilisk.exe"),
-		PR_STRINGREF_INIT (L"palemoon.exe"),
-		PR_STRINGREF_INIT (L"waterfox.exe"),
+		PR_STRINGREF_INIT (L"r3dfox.exe"),
+		PR_STRINGREF_INIT (L"Iceweasel.exe"),
 		PR_STRINGREF_INIT (L"dragon.exe"),
 		PR_STRINGREF_INIT (L"iridium.exe"),
 		PR_STRINGREF_INIT (L"iron.exe"),
@@ -339,8 +471,10 @@ VOID _app_init_browser_info (
 
 	PR_STRING browser_arguments = NULL;
 	PR_STRING browser_type = NULL;
+	PR_STRING type_for_binary = NULL;
 	PR_STRING binary_dir;
 	PR_STRING binary_name;
+	PR_STRING binary_name_cfg;
 	PR_STRING string;
 	PR_STRING profile_dir;
 	USHORT architecture;
@@ -356,9 +490,8 @@ VOID _app_init_browser_info (
 	_app_parse_args (pbi);
 
 	binary_dir = _r_config_getstringexpand (L"ChromiumDirectory", L".\\bin");
-	binary_name = _r_config_getstring (L"ChromiumBinary", L"chrome.exe");
 
-	if (!binary_dir || !binary_name)
+	if (!binary_dir)
 	{
 		RtlRaiseStatus (STATUS_INVALID_PARAMETER);
 
@@ -370,6 +503,62 @@ VOID _app_init_browser_info (
 
 	if (pbi->instance_id < 1)
 		pbi->instance_id = 1;
+
+	if (pbi->instance_id >= 2 && pbi->instance_id <= 4)
+	{
+		PR_STRING type_key = _r_format_string (L"ChromiumType%" TEXT (PR_LONG), pbi->instance_id);
+
+		if (type_key)
+		{
+			type_for_binary = _r_config_getstring (type_key->buffer, NULL);
+			_r_obj_dereference (type_key);
+		}
+	}
+
+	if (!type_for_binary)
+		type_for_binary = _r_config_getstring (L"ChromiumType", CHROMIUM_TYPE);
+
+	binary_name_cfg = _r_config_getstring (L"ChromiumBinary", NULL);
+
+	if (binary_name_cfg && !_r_obj_isstringempty (binary_name_cfg))
+	{
+		binary_name = binary_name_cfg;
+		binary_name_cfg = NULL;
+	}
+	else if (type_for_binary && !_r_obj_isstringempty (type_for_binary))
+	{
+		R_STRINGREF r3dfox_type = PR_STRINGREF_INIT (L"r3dfox");
+		R_STRINGREF iceweasel_type = PR_STRINGREF_INIT (L"iceweasel");
+
+		if (_r_str_isequal (&type_for_binary->sr, &r3dfox_type, TRUE))
+			binary_name = _r_obj_createstring (L"r3dfox.exe");
+		else if (_r_str_isequal (&type_for_binary->sr, &iceweasel_type, TRUE))
+			binary_name = _r_obj_createstring (L"Iceweasel.exe");
+		else
+			binary_name = _r_obj_createstring (L"chrome.exe");
+	}
+	else
+	{
+		binary_name = _r_obj_createstring (L"chrome.exe");
+	}
+
+	if (binary_name_cfg)
+		_r_obj_dereference (binary_name_cfg);
+
+	if (!binary_name)
+	{
+		_r_obj_dereference (binary_dir);
+
+		if (type_for_binary)
+			_r_obj_dereference (type_for_binary);
+
+		RtlRaiseStatus (STATUS_INSUFFICIENT_RESOURCES);
+
+		return;
+	}
+
+	if (type_for_binary)
+		_r_obj_dereference (type_for_binary);
 
 	if (pbi->architecture != 64 && pbi->architecture != 32)
 		pbi->architecture = _r_config_getlong (L"ChromiumArchitecture", 0);
@@ -547,7 +736,6 @@ VOID _app_init_browser_info (
 		if (type_key)
 		{
 			browser_type = _r_config_getstring (type_key->buffer, NULL);
-
 			_r_obj_dereference (type_key);
 		}
 	}
@@ -555,7 +743,35 @@ VOID _app_init_browser_info (
 	if (!browser_type)
 		browser_type = _r_config_getstring (L"ChromiumType", CHROMIUM_TYPE);
 
-	browser_arguments = _r_config_getstringexpand (L"ChromiumCommandLine", CHROMIUM_COMMAND_LINE);
+
+	if (browser_type)
+	{
+		R_STRINGREF r3dfox_type = PR_STRINGREF_INIT (L"r3dfox");
+		R_STRINGREF iceweasel_type = PR_STRINGREF_INIT (L"iceweasel");
+
+		if (_r_str_isequal (&browser_type->sr, &r3dfox_type, TRUE) || _r_str_isequal (&browser_type->sr, &iceweasel_type, TRUE))
+		{
+			PR_STRING cmd_key = NULL;
+
+			if (pbi->instance_id >= 2 && pbi->instance_id <= 4)
+				cmd_key = _r_format_string (L"FirefoxCommandLine%" TEXT (PR_LONG), pbi->instance_id);
+
+			if (cmd_key)
+			{
+				browser_arguments = _r_config_getstringexpand (cmd_key->buffer, NULL);
+				_r_obj_dereference (cmd_key);
+			}
+
+			if (!browser_arguments)
+				browser_arguments = _r_config_getstringexpand (L"FirefoxCommandLine", NULL);
+
+			if (!browser_arguments)
+				browser_arguments = _r_obj_createstring (L"-no-remote");
+		}
+	}
+
+	if (!browser_arguments)
+		browser_arguments = _r_config_getstringexpand (L"ChromiumCommandLine", CHROMIUM_COMMAND_LINE);
 
 	if (browser_type)
 		_r_obj_movereference ((PVOID_PTR)&pbi->browser_type, browser_type);
@@ -567,7 +783,15 @@ VOID _app_init_browser_info (
 	{
 		PR_STRING updated_args;
 
-		updated_args = _app_apply_profile_dir (pbi->args_str, pbi->profile_dir);
+		{
+			R_STRINGREF r3dfox_type = PR_STRINGREF_INIT (L"r3dfox");
+			R_STRINGREF iceweasel_type = PR_STRINGREF_INIT (L"iceweasel");
+
+			if (pbi->browser_type && (_r_str_isequal (&pbi->browser_type->sr, &r3dfox_type, TRUE) || _r_str_isequal (&pbi->browser_type->sr, &iceweasel_type, TRUE)))
+				updated_args = _app_apply_profile_dir_firefox (pbi->args_str, pbi->profile_dir);
+			else
+				updated_args = _app_apply_profile_dir (pbi->args_str, pbi->profile_dir);
+		}
 
 		if (updated_args)
 			_r_obj_movereference ((PVOID_PTR)&pbi->args_str, updated_args);
@@ -611,4 +835,5 @@ VOID _app_init_browser_info (
 		pbi->is_bringtofront = FALSE;
 		pbi->is_waitdownloadend = TRUE;
 	}
+
 }

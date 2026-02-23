@@ -18,7 +18,7 @@
 Small and very fast portable launcher and updater for Chromium.
 
 ### System requirements:
-- Windows 7, 8, 8.1, 10, 11 32-bit/64-bit
+- Windows 7, 8, 8.1, 10, 11 32-bit/64-bit/ARM64
 - An SSE2-capable CPU
 - <s>KB2533623</s> KB3063858 update for Windows 7 was required [[x64](https://www.microsoft.com/en-us/download/details.aspx?id=47442) / [x32](https://www.microsoft.com/en-us/download/details.aspx?id=47409)]
 
@@ -51,8 +51,8 @@ There is list of arguments overrides .ini options
 ~~~
 
 ### Supported browser:
-- as launcher - Chromium based (like Google Chrome, Opera, Yandex Browser, Vivaldi, etc.) and Firefox based (Mozilla Firefox, Basilisk, Pale Moon, Waterfox, etc.)
-- as updater - Chromium only
+- as launcher - Chromium based (like Google Chrome, Opera, Yandex Browser, Vivaldi, etc.) and Firefox based (Mozilla Firefox, r3dfox, Iceweasel, Basilisk, Pale Moon, Waterfox, etc.)
+- as updater - Chromium, r3dfox, Iceweasel
 
 ### Chrome++:
 - By default Chromium encrypt profile with user SID, which is disabled by [Chrome++](https://github.com/Bush2021/chrome_plus), so it is recomended. Starting with version 2.7 of chrlauncher it added support of Chrome++.
@@ -63,13 +63,22 @@ There is list of arguments overrides .ini options
 
 # Custom Chromium update URL (string):
 #ChromiumUpdateUrl=https://chromium.woolyss.com/api/v3/?os=windows&bit=%d&type=%s&out=string
+#ChromiumUpdateUrl=https://github.com/uazo/cromite/releases/latest/download/updateurl.txt
 
 # Command line for Chromium (string):
 # See here: https://peter.sh/experiments/chromium-command-line-switches/
 ChromiumCommandLine=--flag-switches-begin --user-data-dir=..\profile --no-default-browser-check --disable-logging --no-report-upload --flag-switches-end
 
+# Command line for Firefox-based browsers (string):
+# Used only when ChromiumType/ChromiumType2..4 is set to "r3dfox" or "iceweasel".
+#FirefoxCommandLine=-no-remote
+#FirefoxCommandLine2=-no-remote
+#FirefoxCommandLine3=-no-remote
+#FirefoxCommandLine4=-no-remote
+
 # Chromium executable file name (string):
-ChromiumBinary=chrome.exe
+# If set, overrides auto-detection and ChromiumType-based executable selection.
+#ChromiumBinary=chrome.exe
 
 # Chromium binaries directory (string):
 # Relative (to chrlauncher directory) or full path (env. variables supported).
@@ -104,7 +113,7 @@ ChromiumWaitForDownloadEnd=true
 #
 # false	-> update & start Chromium (default)
 # true	-> download & install Chromium update without start
-ChromiumUpdateOnly=false
+ChromiumUpdateOnly=true
 
 # Type of Chromium builds:
 #
@@ -133,14 +142,26 @@ ChromiumUpdateOnly=false
 #	Unofficial builds without Google integration and enhanced privacy (based on Eloston project)
 #	"github.com/macchrome/winchrome/releases/" (32/64 bit)
 #	"github.com/Eloston/ungoogled-chromium"
-ChromiumType=dev-official
+#
+# cromite
+#	Unofficial builds based on Chromium with enhanced security and privacy
+#	"github.com/uazo/cromite/releases"
+#
+# r3dfox / iceweasel
+#	Firefox-based browsers supported as launcher + updater (portable releases via GitHub).
+ChromiumType=ungoogled-chromium
+
+# Type of Chromium builds for instances 2..4:
+#ChromiumType2=ungoogled-chromium
+#ChromiumType3=ungoogled-chromium
+#ChromiumType4=ungoogled-chromium
 
 # Check for new Chromium version once in X days (integer):
 #
-# 2	-> check updates once in a X days (default)
+# 2	-> check updates once in a X days
 # 0	-> disable update checking
 # -1	-> force update checking
-ChromiumCheckPeriod=2
+ChromiumCheckPeriod=0
 
 # Last cached update checking timestamp (integer):
 ChromiumLastCheck=0
@@ -148,6 +169,10 @@ ChromiumLastCheck=0
 # Start browser when downloading and installing is over (boolean)
 #
 ChromiumRunAtEnd=true
+
+# Delete Chromium directory to recylcle when installing update (boolean)
+#
+ChromiumDeleteToRecycle=true
 
 # A DLL hijack implements Chrome full portability as well as tab enhancements.
 # https://github.com/Bush2021/chrome_plus
