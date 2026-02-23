@@ -18,6 +18,9 @@
     <ClCompile Include="src\main.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="src\shortcut.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="src\taskupdate.c">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -28,6 +31,15 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="src\ui_status.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\update_install.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\update_download.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\update_taskflow.c">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="src\update_state.c">
