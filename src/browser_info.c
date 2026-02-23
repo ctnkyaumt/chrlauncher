@@ -209,8 +209,8 @@ VOID _app_init_browser_info (
 
 	R_STRINGREF separator_sr = PR_STRINGREF_INIT (L"\\");
 
-	PR_STRING browser_arguments;
-	PR_STRING browser_type;
+	PR_STRING browser_arguments = NULL;
+	PR_STRING browser_type = NULL;
 	PR_STRING binary_dir;
 	PR_STRING binary_name;
 	PR_STRING string;
