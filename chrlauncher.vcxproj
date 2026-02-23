@@ -457,6 +457,12 @@ xcopy /E /I /Y "$(SolutionDir)bin\i18n" "$(OutDir)i18n" &gt;nul</Command>
     <ClCompile Include="src\lzma\XzEnc.c" />
     <ClCompile Include="src\lzma\XzIn.c" />
     <ClCompile Include="src\main.c" />
+    <ClCompile Include="src\taskupdate.c" />
+    <ClCompile Include="src\args.c" />
+    <ClCompile Include="src\browser.c" />
+    <ClCompile Include="src\ui_status.c" />
+    <ClCompile Include="src\update_state.c" />
+    <ClCompile Include="src\browser_info.c" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\routine\src\ntapi.h" />
