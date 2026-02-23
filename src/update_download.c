@@ -207,7 +207,7 @@ static BOOLEAN _app_checkupdate_github_latest_release (
 
 	{
 		R_STRINGREF api_url_sr;
-		_r_obj_initializestringref_ex (&api_url_sr, release_api_url, wcslen (release_api_url) * sizeof (WCHAR));
+		_r_obj_initializestringref_ex (&api_url_sr, (LPWSTR)release_api_url, wcslen (release_api_url) * sizeof (WCHAR));
 		status = _r_inet_begindownload (hsession, &api_url_sr, &download_info);
 	}
 
