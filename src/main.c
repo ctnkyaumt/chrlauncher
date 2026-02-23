@@ -37,7 +37,6 @@ static VOID _app_create_profileshortcut (
 	_In_ PBROWSER_INFORMATION pbi
 )
 {
-	WCHAR exe_path[4096] = {0};
 	PWSTR desktop_path = NULL;
 	PR_STRING link_title = NULL;
 	PR_STRING link_path = NULL;
@@ -46,7 +45,7 @@ static VOID _app_create_profileshortcut (
 	IShellLinkW *psl = NULL;
 	IPersistFile *ppf = NULL;
 
-	if (!pbi || _r_obj_isstringempty (pbi->profile_dir))
+	if (!pbi || _r_obj_isstringempty (pbi->binary_path) || _r_obj_isstringempty (pbi->profile_dir))
 		return;
 
 	if (!_r_fs_exists (&pbi->profile_dir->sr))
@@ -66,18 +65,15 @@ static VOID _app_create_profileshortcut (
 		_r_fs_createdirectory (&pbi->profile_dir->sr);
 	}
 
-	if (!GetModuleFileNameW (NULL, exe_path, RTL_NUMBER_OF (exe_path)))
-		return;
-
 	hr = SHGetKnownFolderPath (&FOLDERID_Desktop, KF_FLAG_DEFAULT, NULL, &desktop_path);
 
 	if (FAILED (hr) || !desktop_path)
 		return;
 
 	if (pbi->instance_id <= 1)
-		link_title = _r_format_string (L"%s profile (%" TEXT (PR_LONG) L"-bit)", _r_app_getname (), pbi->architecture);
+		link_title = _r_format_string (L"%s (%" TEXT (PR_LONG) L"-bit)", _r_obj_getstring (pbi->browser_type), pbi->architecture);
 	else
-		link_title = _r_format_string (L"%s profile (%" TEXT (PR_LONG) L"-bit) #%" TEXT (PR_LONG), _r_app_getname (), pbi->architecture, pbi->instance_id);
+		link_title = _r_format_string (L"%s (%" TEXT (PR_LONG) L"-bit) #%" TEXT (PR_LONG), _r_obj_getstring (pbi->browser_type), pbi->architecture, pbi->instance_id);
 
 	if (!link_title)
 	{
@@ -108,9 +104,15 @@ static VOID _app_create_profileshortcut (
 
 	if (SUCCEEDED (hr) && psl)
 	{
-		psl->lpVtbl->SetPath (psl, pbi->profile_dir->buffer);
-		psl->lpVtbl->SetWorkingDirectory (psl, pbi->profile_dir->buffer);
-		psl->lpVtbl->SetIconLocation (psl, exe_path, 0);
+		psl->lpVtbl->SetPath (psl, pbi->binary_path->buffer);
+
+		if (!_r_obj_isstringempty (pbi->binary_dir))
+			psl->lpVtbl->SetWorkingDirectory (psl, pbi->binary_dir->buffer);
+
+		if (!_r_obj_isstringempty (pbi->args_str))
+			psl->lpVtbl->SetArguments (psl, pbi->args_str->buffer);
+
+		psl->lpVtbl->SetIconLocation (psl, pbi->binary_path->buffer, 0);
 		psl->lpVtbl->SetDescription (psl, link_title->buffer);
 
 		hr = psl->lpVtbl->QueryInterface (psl, &IID_IPersistFile, (PVOID_PTR)&ppf);
@@ -967,6 +969,8 @@ static VOID _app_update_secondary_instance (
 	if (!pbi || !pbi->binary_path)
 		return;
 
+	_app_update_browser_info (hwnd, pbi);
+
 	if (_app_isupdatedownloaded (pbi))
 	{
 		if (!_r_fs_isfileused (&pbi->binary_path->sr))
@@ -986,7 +990,10 @@ static VOID _app_update_secondary_instance (
 	is_updaterequired = _app_isupdaterequired (pbi);
 
 	if (is_exists && !is_updaterequired)
+	{
+		_app_create_profileshortcut (pbi);
 		return;
+	}
 
 	if (!_app_checkupdate (hwnd, pbi, &is_haveerror) || is_haveerror)
 		return;
@@ -1046,6 +1053,8 @@ static VOID _app_thread_taskupdate_all (
 			pbi->is_autodownload = TRUE;
 			_app_init_browser_info (pbi);
 		}
+
+		_app_update_browser_info (hwnd, pbi);
 
 		_app_taskupdate_closebrowser (pbi, &was_running[instance_id - 1]);
 
@@ -1362,6 +1371,9 @@ VOID _app_thread_check (
 
 		is_stayopen = TRUE;
 	}
+
+	if (_r_fs_exists (&pbi->binary_path->sr))
+		_app_create_profileshortcut (pbi);
 
 	if (_r_config_getboolean (L"ChromiumRunAtEnd", TRUE) && !pbi->is_onlyupdate)
 		_app_openbrowser (pbi);

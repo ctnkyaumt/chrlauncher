@@ -12,6 +12,137 @@ VOID _app_parse_args (
 	_Inout_ PBROWSER_INFORMATION pbi
 );
 
+static PR_STRING _app_get_arch_root_dir (
+	_In_ LONG architecture
+)
+{
+	WCHAR exe_path[4096] = {0};
+	WCHAR dir_buf[4096] = {0};
+	WCHAR parent_buf[4096] = {0};
+	LPCWSTR arch_folder = (architecture == 32) ? L"32" : L"64";
+	PWSTR slash_ptr;
+	PWSTR leaf_ptr;
+	PR_STRING preferred_root = NULL;
+	PR_STRING legacy_root = NULL;
+	PR_STRING preferred_bin = NULL;
+	PR_STRING legacy_bin = NULL;
+
+	if (!GetModuleFileNameW (NULL, exe_path, RTL_NUMBER_OF (exe_path)))
+		return _r_obj_createstring (L".");
+
+	_r_str_copy (dir_buf, RTL_NUMBER_OF (dir_buf), exe_path);
+
+	slash_ptr = wcsrchr (dir_buf, L'\\');
+
+	if (slash_ptr)
+		*slash_ptr = 0;
+
+	leaf_ptr = wcsrchr (dir_buf, L'\\');
+
+	if (leaf_ptr)
+		leaf_ptr = leaf_ptr + 1;
+	else
+		leaf_ptr = dir_buf;
+
+	if (_r_str_compare (leaf_ptr, L"32", 2) == 0 || _r_str_compare (leaf_ptr, L"64", 2) == 0)
+	{
+		_r_str_copy (parent_buf, RTL_NUMBER_OF (parent_buf), dir_buf);
+
+		slash_ptr = wcsrchr (parent_buf, L'\\');
+
+		if (slash_ptr)
+			*slash_ptr = 0;
+
+		preferred_root = _r_format_string (L"%s\\%s", parent_buf, arch_folder);
+		legacy_root = _r_format_string (L"%s\\%s", dir_buf, arch_folder);
+	}
+	else
+	{
+		preferred_root = _r_format_string (L"%s\\%s", dir_buf, arch_folder);
+	}
+
+	if (!preferred_root)
+	{
+		if (legacy_root)
+			_r_obj_dereference (legacy_root);
+
+		return NULL;
+	}
+
+	if (!legacy_root)
+		return preferred_root;
+
+	preferred_bin = _r_format_string (L"%s\\bin", preferred_root->buffer);
+	legacy_bin = _r_format_string (L"%s\\bin", legacy_root->buffer);
+
+	if (preferred_bin && legacy_bin)
+	{
+		if (!_r_fs_exists (&preferred_bin->sr) && _r_fs_exists (&legacy_bin->sr))
+		{
+			_r_obj_dereference (preferred_root);
+			preferred_root = legacy_root;
+			legacy_root = NULL;
+		}
+	}
+
+	if (preferred_bin)
+		_r_obj_dereference (preferred_bin);
+
+	if (legacy_bin)
+		_r_obj_dereference (legacy_bin);
+
+	if (legacy_root)
+		_r_obj_dereference (legacy_root);
+
+	return preferred_root;
+}
+
+static PR_STRING _app_get_instance_dir (
+	_In_ LONG architecture,
+	_In_ LONG instance_id
+)
+{
+	PR_STRING arch_root;
+	PR_STRING instance_dir;
+
+	arch_root = _app_get_arch_root_dir (architecture);
+
+	if (!arch_root)
+		return NULL;
+
+	if (instance_id <= 1)
+		instance_dir = _r_format_string (L"%s\\bin", arch_root->buffer);
+	else
+		instance_dir = _r_format_string (L"%s\\bin%" TEXT (PR_LONG), arch_root->buffer, instance_id);
+
+	_r_obj_dereference (arch_root);
+
+	return instance_dir;
+}
+
+static PR_STRING _app_get_profile_dir (
+	_In_ LONG architecture,
+	_In_ LONG instance_id
+)
+{
+	PR_STRING arch_root;
+	PR_STRING profile_dir;
+
+	arch_root = _app_get_arch_root_dir (architecture);
+
+	if (!arch_root)
+		return NULL;
+
+	if (instance_id <= 1)
+		profile_dir = _r_format_string (L"%s\\profile", arch_root->buffer);
+	else
+		profile_dir = _r_format_string (L"%s\\profile%" TEXT (PR_LONG), arch_root->buffer, instance_id);
+
+	_r_obj_dereference (arch_root);
+
+	return profile_dir;
+}
+
 static LONG _app_get_next_instance_id (
 	_In_ LONG architecture
 )
@@ -21,10 +152,7 @@ static LONG _app_get_next_instance_id (
 
 	for (; instance_id < 1000; instance_id++)
 	{
-		if (instance_id == 1)
-			dir = _r_format_string (L".\\%" TEXT (PR_LONG) L"\\bin", architecture);
-		else
-			dir = _r_format_string (L".\\%" TEXT (PR_LONG) L"\\bin%" TEXT (PR_LONG), architecture, instance_id);
+		dir = _app_get_instance_dir (architecture, instance_id);
 
 		if (!dir)
 			break;
@@ -257,10 +385,7 @@ VOID _app_init_browser_info (
 		{
 			LONG arch_value = arch_test[a];
 
-			if (pbi->instance_id == 1)
-				test_dir = _r_format_string (L".\\%" TEXT (PR_LONG) L"\\bin", arch_value);
-			else
-				test_dir = _r_format_string (L".\\%" TEXT (PR_LONG) L"\\bin%" TEXT (PR_LONG), arch_value, pbi->instance_id);
+			test_dir = _app_get_instance_dir (arch_value, pbi->instance_id);
 
 			if (!test_dir)
 				continue;
@@ -296,16 +421,8 @@ VOID _app_init_browser_info (
 	if (pbi->is_newinstance)
 		pbi->instance_id = _app_get_next_instance_id (pbi->architecture);
 
-	if (pbi->instance_id == 1)
-	{
-		string = _r_format_string (L".\\%" TEXT (PR_LONG) L"\\bin", pbi->architecture);
-		profile_dir = _r_format_string (L".\\%" TEXT (PR_LONG) L"\\profile", pbi->architecture);
-	}
-	else
-	{
-		string = _r_format_string (L".\\%" TEXT (PR_LONG) L"\\bin%" TEXT (PR_LONG), pbi->architecture, pbi->instance_id);
-		profile_dir = _r_format_string (L".\\%" TEXT (PR_LONG) L"\\profile%" TEXT (PR_LONG), pbi->architecture, pbi->instance_id);
-	}
+	string = _app_get_instance_dir (pbi->architecture, pbi->instance_id);
+	profile_dir = _app_get_profile_dir (pbi->architecture, pbi->instance_id);
 
 	_r_obj_dereference (binary_dir);
 

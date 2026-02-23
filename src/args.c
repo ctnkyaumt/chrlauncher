@@ -118,7 +118,8 @@ VOID _app_parse_args (
 				}
 				else if (_r_str_compare (key2, L"newinstance", 11) == 0)
 				{
-					pbi->is_newinstance = TRUE;
+					if (pbi->instance_id < 1)
+						pbi->is_newinstance = TRUE;
 				}
 				else if (_r_str_compare (key2, L"wait", 4) == 0)
 				{
