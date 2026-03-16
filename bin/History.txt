@@ -1,3 +1,9 @@
+v2.8 (23 February 2026)
+- added firefox forks as instances (add via .ini file)
+- added functionality to install multiple instances (up to 4)
+- implemented updater logic that updates all instances sequentially
+- splitted main.c dor code manageability
+
 v2.7 (21 February 2026)
 - added Cromite updater support (ChromiumType=cromite)
 - changed defaults: ChromiumType=ungoogled-chromium and ChromiumUpdateOnly=true
