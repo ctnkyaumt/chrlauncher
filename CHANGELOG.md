@@ -1,3 +1,18 @@
+v2.8 (23 February 2026)
+- added firefox forks as instances (add via .ini file)
+- added functionality to install multiple instances (up to 4)
+- implemented updater logic that updates all instances sequentially
+- splitted main.c dor code manageability
+
+v2.7 (21 February 2026)
+- added Cromite updater support (ChromiumType=cromite)
+- changed defaults: ChromiumType=ungoogled-chromium and ChromiumUpdateOnly=true
+- added scheduled auto-update toggle with restart notice
+- fixed empty Language submenu after adding new Settings items
+- changed default update checking to disabled (ChromiumCheckPeriod=0)
+- improved CI artifact naming (.zip extension)
+- fixed bugs
+
 v2.6 (14 January 2022)
 - set win7sp1 as minimum required version
 - prevent system sleep until download complete
