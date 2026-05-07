@@ -467,6 +467,7 @@ xcopy /E /I /Y "$(SolutionDir)bin\i18n" "$(OutDir)i18n" &gt;nul</Command>
     <ClCompile Include="src\update_taskflow.c" />
     <ClCompile Include="src\update_state.c" />
     <ClCompile Include="src\browser_info.c" />
+    <ClCompile Include="src\registry.c" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\routine\src\ntapi.h" />

@@ -48,6 +48,9 @@
     <ClCompile Include="src\browser_info.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="src\registry.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="..\routine\src\rapp.c">
       <Filter>Source Files</Filter>
     </ClCompile>

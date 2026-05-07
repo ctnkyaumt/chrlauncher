@@ -7,6 +7,7 @@
 #include "rapp.h"
 
 #include "resource.h"
+#include <tlhelp32.h>
 
 BROWSER_INFORMATION browser_info = {0};
 
@@ -104,6 +105,19 @@ VOID _app_clear_browser_info_references (
 VOID _app_update_secondary_instance (
 	_In_ HWND hwnd,
 	_Inout_ PBROWSER_INFORMATION pbi
+);
+
+BOOLEAN _app_patch_registry_profile (
+	_In_ PBROWSER_INFORMATION pbi
+);
+
+BOOLEAN _app_is_registry_patched (
+	_In_ PBROWSER_INFORMATION pbi
+);
+
+BOOLEAN _app_ensure_registry_profile (
+	_In_ HWND hwnd,
+	_In_ PBROWSER_INFORMATION pbi
 );
 
 VOID _app_thread_taskupdate_all (
@@ -342,7 +356,12 @@ VOID _app_thread_check (
 	}
 
 	if (_r_fs_exists (&pbi->binary_path->sr))
+	{
 		_app_create_profileshortcut (pbi);
+
+		if (_r_config_getboolean (L"PatchRegistryProfile", TRUE))
+			_app_ensure_registry_profile (hwnd, pbi);
+	}
 
 	if (_r_config_getboolean (L"ChromiumRunAtEnd", TRUE) && !pbi->is_onlyupdate)
 		_app_openbrowser (pbi);
@@ -357,6 +376,101 @@ VOID _app_thread_check (
 	{
 		_r_wnd_sendmessage (hwnd, 0, WM_DESTROY, 0, 0);
 	}
+}
+
+BOOLEAN _app_ensure_registry_profile (
+	_In_ HWND hwnd,
+	_In_ PBROWSER_INFORMATION pbi
+)
+{
+	PR_STRING cmdline;
+	NTSTATUS status;
+
+	if (!pbi || _r_obj_isstringempty (pbi->binary_path) || _r_obj_isstringempty (pbi->profile_dir))
+		return FALSE;
+
+	if (!_r_fs_exists (&pbi->binary_path->sr))
+		return FALSE;
+
+	// already patched, nothing to do
+	if (_app_is_registry_patched (pbi))
+		return TRUE;
+
+	// registry keys don't exist yet - browser needs to run once to register itself
+	// prompt user before doing this
+	if (_r_show_message (hwnd, MB_YESNO | MB_ICONQUESTION, NULL,
+		L"Chromium needs to run once to register as a browser before the profile path can be set in the registry.\n\n"
+		L"This will launch Chromium briefly and close it automatically.\n\n"
+		L"Do you want to proceed?") != IDYES)
+		return FALSE;
+
+	// launch browser with --no-first-run --user-data-dir to create profile and register
+	cmdline = _r_format_string (L"\"%s\" --no-first-run --user-data-dir=\"%s\"",
+		pbi->binary_path->buffer,
+		pbi->profile_dir->buffer);
+
+	if (!cmdline)
+		return FALSE;
+
+	status = _r_sys_createprocess (pbi->binary_path->buffer, cmdline->buffer, pbi->binary_dir->buffer, FALSE);
+
+	_r_obj_dereference (cmdline);
+
+	if (!NT_SUCCESS (status))
+		return FALSE;
+
+	// wait a few seconds for the browser to register itself and create profile files
+	Sleep (5000);
+
+	// try to find and close the browser process
+	{
+		HANDLE snapshot = CreateToolhelp32Snapshot (TH32CS_SNAPPROCESS, 0);
+
+		if (snapshot != INVALID_HANDLE_VALUE)
+		{
+			PROCESSENTRY32W pe = {0};
+			pe.dwSize = sizeof (pe);
+
+			if (Process32FirstW (snapshot, &pe))
+			{
+				R_STRINGREF binary_name_sr;
+				R_STRINGREF exe_name_sr;
+
+				_r_path_getpathinfo (&pbi->binary_path->sr, NULL, &binary_name_sr);
+
+				do
+				{
+					_r_obj_initializestringref (&exe_name_sr, pe.szExeFile);
+
+					if (_r_str_isequal (&binary_name_sr, &exe_name_sr, TRUE))
+					{
+					HANDLE hproc = OpenProcess (PROCESS_TERMINATE | SYNCHRONIZE, FALSE, pe.th32ProcessID);
+
+						if (hproc)
+						{
+							TerminateProcess (hproc, 0);
+
+							// wait for process to exit
+							WaitForSingleObject (hproc, 10000);
+
+							NtClose (hproc);
+						}
+
+						break;
+					}
+				}
+				while (Process32NextW (snapshot, &pe));
+			}
+
+			NtClose (snapshot);
+		}
+	}
+
+	// give it a moment after closing
+	Sleep (2000);
+
+	// now try to patch the registry
+	return _app_patch_registry_profile (pbi);
 }
 
 INT_PTR CALLBACK DlgProc (
