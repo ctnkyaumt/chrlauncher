@@ -104,7 +104,6 @@ static PR_STRING _app_insert_profile_dir_in_command (
 	PR_STRING profile_arg;
 	PR_STRING result;
 	LPCWSTR insert_pos;
-	LPCWSTR cmd_end;
 	SIZE_T prefix_len;
 	SIZE_T suffix_len;
 	SIZE_T result_len;
