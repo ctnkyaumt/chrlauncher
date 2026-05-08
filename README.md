@@ -1,11 +1,11 @@
 <h1 align="center">chrlauncher</h1>
 
 <p align="center">
-	<a href="https://github.com/launchbro/launchbro/releases"><img src="https://img.shields.io/github/v/release/launchbro/launchbro?style=flat-square&include_prereleases&label=version" /></a>
-	<a href="https://github.com/launchbro/launchbro/releases"><img src="https://img.shields.io/github/downloads/launchbro/launchbro/total.svg?style=flat-square" /></a>
-	<a href="https://github.com/launchbro/launchbro/issues"><img src="https://img.shields.io/github/issues-raw/launchbro/launchbro.svg?style=flat-square&label=issues" /></a>
-	<a href="https://github.com/launchbro/launchbro/graphs/contributors"><img src="https://img.shields.io/github/contributors/launchbro/launchbro?style=flat-square" /></a>
-	<a href="https://github.com/launchbro/launchbro/blob/master/LICENSE"><img src="https://img.shields.io/github/license/launchbro/launchbro?style=flat-square" /></a>
+	<a href="https://github.com/launchbro/releases"><img src="https://img.shields.io/github/v/release/launchbro?style=flat-square&include_prereleases&label=version" /></a>
+	<a href="https://github.com/launchbro/releases"><img src="https://img.shields.io/github/downloads/launchbro/total.svg?style=flat-square" /></a>
+	<a href="https://github.com/launchbro/issues"><img src="https://img.shields.io/github/issues-raw/launchbro.svg?style=flat-square&label=issues" /></a>
+	<a href="https://github.com/launchbro/graphs/contributors"><img src="https://img.shields.io/github/contributors/launchbro?style=flat-square" /></a>
+	<a href="https://github.com/launchbro/blob/master/LICENSE"><img src="https://img.shields.io/github/license/launchbro?style=flat-square" /></a>
 </p>
 
 -------
@@ -192,8 +192,4 @@ ChromiumDeleteToRecycle=true
 - [Disable annoying chrlauncher window popup](https://github.com/henrypp/chrlauncher/issues/96#issuecomment-439294915)
 - [Is it possible to downgrade Chromium version?](https://github.com/henrypp/chrlauncher/issues/112#issuecomment-440940865)
 - [Fix for duplicated taskbar icons creation](https://github.com/henrypp/chrlauncher/issues/49#issuecomment-289285155)
----
-- Website: [github.com/henrypp](https://github.com/henrypp)
-- Support: sforce5@mail.ru
----
-(c) 2015-2026 Henry++
+
