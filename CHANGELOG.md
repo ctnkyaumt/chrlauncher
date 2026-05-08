@@ -1,3 +1,10 @@
+v2.9 (7 May 2026)
+- added registry profile patching for portable default browser integration
+- added GitHub API latest release support for r3dfox and iceweasel updaters
+- implemented smart release asset selection based on architecture and file type
+- added exponential backoff retry logic for failed downloads
+- fixed bugs
+
 v2.8 (23 February 2026)
 - added firefox forks as instances (add via .ini file)
 - added functionality to install multiple instances (up to 4)

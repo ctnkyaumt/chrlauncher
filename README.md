@@ -1,11 +1,11 @@
 <h1 align="center">chrlauncher</h1>
 
 <p align="center">
-	<a href="https://github.com/henrypp/chrlauncher/releases"><img src="https://img.shields.io/github/v/release/henrypp/chrlauncher?style=flat-square&include_prereleases&label=version" /></a>
-	<a href="https://github.com/henrypp/chrlauncher/releases"><img src="https://img.shields.io/github/downloads/henrypp/chrlauncher/total.svg?style=flat-square" /></a>
-	<a href="https://github.com/henrypp/chrlauncher/issues"><img src="https://img.shields.io/github/issues-raw/henrypp/chrlauncher.svg?style=flat-square&label=issues" /></a>
-	<a href="https://github.com/henrypp/chrlauncher/graphs/contributors"><img src="https://img.shields.io/github/contributors/henrypp/chrlauncher?style=flat-square" /></a>
-	<a href="https://github.com/henrypp/chrlauncher/blob/master/LICENSE"><img src="https://img.shields.io/github/license/henrypp/chrlauncher?style=flat-square" /></a>
+	<a href="https://github.com/launchbro/launchbro/releases"><img src="https://img.shields.io/github/v/release/launchbro/launchbro?style=flat-square&include_prereleases&label=version" /></a>
+	<a href="https://github.com/launchbro/launchbro/releases"><img src="https://img.shields.io/github/downloads/launchbro/launchbro/total.svg?style=flat-square" /></a>
+	<a href="https://github.com/launchbro/launchbro/issues"><img src="https://img.shields.io/github/issues-raw/launchbro/launchbro.svg?style=flat-square&label=issues" /></a>
+	<a href="https://github.com/launchbro/launchbro/graphs/contributors"><img src="https://img.shields.io/github/contributors/launchbro/launchbro?style=flat-square" /></a>
+	<a href="https://github.com/launchbro/launchbro/blob/master/LICENSE"><img src="https://img.shields.io/github/license/launchbro/launchbro?style=flat-square" /></a>
 </p>
 
 -------
@@ -21,12 +21,6 @@ Small and very fast portable launcher and updater for Chromium.
 - Windows 7, 8, 8.1, 10, 11 32-bit/64-bit/ARM64
 - An SSE2-capable CPU
 - <s>KB2533623</s> KB3063858 update for Windows 7 was required [[x64](https://www.microsoft.com/en-us/download/details.aspx?id=47442) / [x32](https://www.microsoft.com/en-us/download/details.aspx?id=47409)]
-
-### Donate:
-- [Bitcoin](https://www.blockchain.com/btc/address/1LrRTXPsvHcQWCNZotA9RcwjsGcRghG96c) (BTC)
-- [Ethereum](https://www.blockchain.com/explorer/addresses/eth/0xe2C84A62eb2a4EF154b19bec0c1c106734B95960) (ETC)
-- [Paypal](https://paypal.me/henrypp) (USD)
-- [Yandex Money](https://yoomoney.ru/to/4100115776040583) (RUB)
 
 ### GPG Signature:
 Binaries have GPG signature `chrlauncher.exe.sig` in application folder.
