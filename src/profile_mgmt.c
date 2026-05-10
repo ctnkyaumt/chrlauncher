@@ -417,8 +417,8 @@ VOID _app_uninstall_app (
 )
 {
 	PR_STRING app_root;
-	PR_STRING bat_path;
-	PR_STRING bat_content;
+	PR_STRING bat_path = NULL;
+	PR_STRING bat_content = NULL;
 	HANDLE hfile;
 	ULONG written;
 	NTSTATUS status;

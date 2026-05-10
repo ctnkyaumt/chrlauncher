@@ -677,8 +677,8 @@ VOID _app_perform_migration (
 {
 	PR_STRING app_root;
 	WCHAR parent_buf[4096] = {0};
-	PR_STRING bat_path;
-	PR_STRING bat_content;
+	PR_STRING bat_path = NULL;
+	PR_STRING bat_content = NULL;
 	HANDLE hfile;
 	ULONG written;
 	NTSTATUS status;
