@@ -20,7 +20,7 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           if (!(Test-Path ..\routine)) {
-            git clone --depth 1 https://github.com/ctnkyaumt/routine.git ..\routine
+            git clone --depth 1 https://github.com/henrypp/routine.git ..\routine
           }
 
       - name: Build Release x64
