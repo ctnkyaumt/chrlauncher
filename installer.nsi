@@ -49,6 +49,10 @@ Section "Install"
 SectionEnd
 
 Section "Uninstall"
+    ; Close launchbro / chrlauncher and bundled browser processes from this install root
+    ExecWait '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -Command "$roots=@(''$INSTDIR'');$legacy=Join-Path ([System.IO.Path]::GetDirectoryName(''$INSTDIR'')) ''chrlauncher'';if(Test-Path $legacy){$roots+=$legacy};Get-CimInstance Win32_Process | Where-Object { $path=$_.ExecutablePath; $path -and @($roots | Where-Object { $path.StartsWith($_, [System.StringComparison]::OrdinalIgnoreCase) }).Count -gt 0 } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }"'
+    Sleep 1500
+
     ; Remove shortcuts
     Delete "$SMPROGRAMS\${APP_NAME}\${APP_NAME}.lnk"
     Delete "$SMPROGRAMS\${APP_NAME}\Uninstall.lnk"

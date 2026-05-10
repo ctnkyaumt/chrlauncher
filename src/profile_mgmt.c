@@ -452,14 +452,14 @@ VOID _app_uninstall_app (
 		bat_content = _r_format_string (
 			L"@echo off\r\n"
 			L"timeout /t 2 /nobreak >nul\r\n"
+			L"set \"ROOT=%s\"\r\n"
+			L"powershell -NoProfile -ExecutionPolicy Bypass -Command \"$roots=@($env:ROOT);$legacy=Join-Path ([System.IO.Path]::GetDirectoryName($env:ROOT)) 'chrlauncher';if(Test-Path $legacy){$roots+=$legacy};Get-CimInstance Win32_Process | Where-Object { $path=$_.ExecutablePath; $path -and @($roots | Where-Object { $path.StartsWith($_, [System.StringComparison]::OrdinalIgnoreCase) }).Count -gt 0 } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }\" >nul 2>&1\r\n"
 			L":wait_loop\r\n"
 			L"tasklist | findstr /i \"launchbro.exe\" >nul\r\n"
 			L"if %%errorlevel%% == 0 (\r\n"
 			L"  timeout /t 1 /nobreak >nul\r\n"
 			L"  goto wait_loop\r\n"
 			L")\r\n"
-			L"\r\n"
-			L"set \"ROOT=%s\"\r\n"
 			L"\r\n"
 			L"for /d %%d in (\"%%ROOT%%\\32\",\"%%ROOT%%\\64\") do (\r\n"
 			L"  if exist \"%%d\" (\r\n"
@@ -483,6 +483,8 @@ VOID _app_uninstall_app (
 		bat_content = _r_format_string (
 			L"@echo off\r\n"
 			L"timeout /t 2 /nobreak >nul\r\n"
+			L"set \"ROOT=%s\"\r\n"
+			L"powershell -NoProfile -ExecutionPolicy Bypass -Command \"$roots=@($env:ROOT);$legacy=Join-Path ([System.IO.Path]::GetDirectoryName($env:ROOT)) 'chrlauncher';if(Test-Path $legacy){$roots+=$legacy};Get-CimInstance Win32_Process | Where-Object { $path=$_.ExecutablePath; $path -and @($roots | Where-Object { $path.StartsWith($_, [System.StringComparison]::OrdinalIgnoreCase) }).Count -gt 0 } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }\" >nul 2>&1\r\n"
 			L":wait_loop\r\n"
 			L"tasklist | findstr /i \"launchbro.exe\" >nul\r\n"
 			L"if %%errorlevel%% == 0 (\r\n"
@@ -490,7 +492,7 @@ VOID _app_uninstall_app (
 			L"  goto wait_loop\r\n"
 			L")\r\n"
 			L"\r\n"
-			L"rmdir /s /q \"%s\"\r\n"
+			L"rmdir /s /q \"%%ROOT%%\"\r\n"
 			L"del /f /q \"%s\"\r\n",
 			app_root->buffer,
 			bat_path->buffer

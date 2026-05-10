@@ -117,7 +117,7 @@ BEGIN
 	IDS_HELP "Help"
 	IDS_WEBSITE "Website"
 	IDS_ABOUT "About"
-	IDS_DONATE "Give thanks!"
+	IDS_DONATE ""
 
 	IDS_TRAY_SHOW "Show/Hide"
 

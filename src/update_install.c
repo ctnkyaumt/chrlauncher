@@ -406,6 +406,17 @@ BOOLEAN _app_unpack_zip (
 	return is_success;
 }
 
+static BOOLEAN _app_swap_directory (
+	_In_ LPCWSTR source_dir,
+	_In_ LPCWSTR target_dir
+)
+{
+	if (!source_dir || !target_dir)
+		return FALSE;
+
+	return MoveFileExW (source_dir, target_dir, MOVEFILE_WRITE_THROUGH) ? TRUE : FALSE;
+}
+
 BOOLEAN _app_installupdate (
 	_In_ HWND hwnd,
 	_In_ PBROWSER_INFORMATION pbi,
@@ -413,31 +424,75 @@ BOOLEAN _app_installupdate (
 )
 {
 	R_STRINGREF bin_name;
-	PR_STRING buffer1;
-	PR_STRING buffer2;
+	PR_STRING buffer1 = NULL;
+	PR_STRING buffer2 = NULL;
+	PR_STRING backup_dir = NULL;
+	PR_STRING staged_dir = NULL;
+	BROWSER_INFORMATION install_info;
+	BOOLEAN had_existing_dir = FALSE;
+	ULONG win32_error = ERROR_SUCCESS;
 	NTSTATUS status;
 
 	_r_queuedlock_acquireshared (&lock_download);
-
-	status = _r_fs_deletedirectory (&pbi->binary_dir->sr, TRUE);
-
-	if (!NT_SUCCESS (status) && status != STATUS_OBJECT_NAME_NOT_FOUND)
-		_r_log (LOG_LEVEL_ERROR, NULL, L"_r_fs_deletedirectory", status, pbi->binary_dir->buffer);
 
 	_r_path_getpathinfo (&pbi->binary_path->sr, NULL, &bin_name);
 
 	_r_sys_setthreadexecutionstate (ES_SYSTEM_REQUIRED | ES_AWAYMODE_REQUIRED);
 
-	if (!_r_fs_exists (&pbi->binary_dir->sr))
-		_r_fs_createdirectory (&pbi->binary_dir->sr);
+	backup_dir = _r_format_string (L"%s.old", pbi->binary_dir->buffer);
+	staged_dir = _r_format_string (L"%s.new", pbi->binary_dir->buffer);
 
-	if (_app_unpack_zip (hwnd, pbi, &bin_name))
+	if (!backup_dir || !staged_dir)
+	{
+		status = STATUS_NO_MEMORY;
+		goto CleanupExit;
+	}
+
+	status = _r_fs_deletedirectory (&backup_dir->sr, TRUE);
+
+	if (!NT_SUCCESS (status) && status != STATUS_OBJECT_NAME_NOT_FOUND)
+		_r_log (LOG_LEVEL_ERROR, NULL, L"_r_fs_deletedirectory", status, backup_dir->buffer);
+
+	status = _r_fs_deletedirectory (&staged_dir->sr, TRUE);
+
+	if (!NT_SUCCESS (status) && status != STATUS_OBJECT_NAME_NOT_FOUND)
+		_r_log (LOG_LEVEL_ERROR, NULL, L"_r_fs_deletedirectory", status, staged_dir->buffer);
+
+	had_existing_dir = _r_fs_exists (&pbi->binary_dir->sr);
+
+	if (had_existing_dir)
+	{
+		if (!_app_swap_directory (pbi->binary_dir->buffer, backup_dir->buffer))
+		{
+			win32_error = GetLastError ();
+			_r_show_errormessage (hwnd, NULL, win32_error, pbi->binary_dir->buffer, ET_WINDOWS);
+			status = (NTSTATUS)win32_error;
+			goto CleanupExit;
+		}
+	}
+
+	_r_fs_createdirectory (&staged_dir->sr);
+
+	install_info = *pbi;
+	install_info.binary_dir = staged_dir;
+
+	if (_app_unpack_zip (hwnd, &install_info, &bin_name))
 	{
 		status = SZ_OK;
 	}
 	else
 	{
-		status = _app_unpack_7zip (hwnd, pbi, &bin_name);
+		status = _app_unpack_7zip (hwnd, &install_info, &bin_name);
+	}
+
+	if (status == SZ_OK)
+	{
+		if (!_app_swap_directory (staged_dir->buffer, pbi->binary_dir->buffer))
+		{
+			win32_error = GetLastError ();
+			_r_show_errormessage (hwnd, NULL, win32_error, staged_dir->buffer, ET_WINDOWS);
+			status = (NTSTATUS)win32_error;
+		}
 	}
 
 	// get new version
@@ -447,7 +502,7 @@ BOOLEAN _app_installupdate (
 	// remove cache file when zip cannot be opened
 	_r_fs_deletefile (&pbi->cache_path->sr, NULL);
 
-	if (_r_fs_exists (&pbi->chrome_plus_dir->sr))
+	if (status == SZ_OK && !_r_obj_isstringempty (pbi->chrome_plus_dir) && _r_fs_exists (&pbi->chrome_plus_dir->sr))
 	{
 		buffer1 = _r_format_string (L"%s\\version.dll", pbi->chrome_plus_dir->buffer);
 		buffer2 = _r_format_string (L"%s\\version.dll", pbi->binary_dir->buffer);
@@ -464,6 +519,34 @@ BOOLEAN _app_installupdate (
 		_r_obj_dereference (buffer1);
 		_r_obj_dereference (buffer2);
 	}
+
+CleanupExit:
+
+	if (status == SZ_OK)
+	{
+		if (backup_dir)
+			_r_fs_deletedirectory (&backup_dir->sr, TRUE);
+	}
+	else
+	{
+		if (staged_dir)
+			_r_fs_deletedirectory (&staged_dir->sr, TRUE);
+
+		if (had_existing_dir && backup_dir && !_r_fs_exists (&pbi->binary_dir->sr))
+		{
+			if (!_app_swap_directory (backup_dir->buffer, pbi->binary_dir->buffer))
+			{
+				win32_error = GetLastError ();
+				_r_log (LOG_LEVEL_ERROR, NULL, L"MoveFileExW", win32_error, backup_dir->buffer);
+			}
+		}
+	}
+
+	if (backup_dir)
+		_r_obj_dereference (backup_dir);
+
+	if (staged_dir)
+		_r_obj_dereference (staged_dir);
 
 	*is_error_ptr = (status != SZ_OK);
 

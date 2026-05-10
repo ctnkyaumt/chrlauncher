@@ -385,7 +385,7 @@ VOID _app_thread_check (
 
 			if (!pbi->is_autodownload && !_app_isupdatedownloaded (pbi))
 			{
-				_r_tray_popupformat (hwnd, &GUID_TrayIcon, NIIF_ERROR, _r_app_getname (), _r_locale_getstring (IDS_STATUS_FOUND), pbi->new_version->buffer); // just inform user
+				_r_tray_popupformat (hwnd, &GUID_TrayIcon, NIIF_INFO, _r_app_getname (), _r_locale_getstring (IDS_STATUS_FOUND), pbi->new_version->buffer); // just inform user
 
 				locale_id = _app_getactionid (pbi);
 
