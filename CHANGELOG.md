@@ -1,3 +1,14 @@
+v2.9.1 (10 May 2026)
+- refactored project to launchbro and added Firefox fork icon support
+- implemented application updater, uninstall, and profile export support
+- fixed build errors
+- added new icons and dynamic icon switching by browser instance type
+- changed idle and Explorer executable icon to launchbro.ico
+- changed update activity icon to chromium.ico for Chromium-based instances
+- changed update activity icon to ff.ico for Firefox-based instances
+- resized icons
+- updated readme
+
 v2.9 (7 May 2026)
 - added registry profile patching for portable default browser integration
 - added GitHub API latest release support for r3dfox and iceweasel updaters
