@@ -1,4 +1,9 @@
-<h1 align="center">launchbro</h1>
+<h1 align="center">
+	<img src="/images/launchbro.ico"width="240" height="240" style="vertical-align: middle;">
+	<span>&nbsp;
+		launchbro
+	</span>
+</h1>
 
 <p align="center">
 	<a href="https://github.com/ctnkyaumt/launchbro/releases"><img src="https://img.shields.io/github/v/release/ctnkyaumt/launchbro?style=flat-square&include_prereleases&label=version" /></a>
